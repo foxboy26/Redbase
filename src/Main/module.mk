@@ -1,0 +1,1 @@
+SRCS += Main/RedBase.cpp
