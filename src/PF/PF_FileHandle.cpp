@@ -28,7 +28,7 @@ PF_FileHandle& PF_FileHandle::operator= (const PF_FileHandle& fileHandle)
     this->bufferPool = fileHandle.bufferPool;
   }
 
-  return (*this);
+  return *this;
 }
 
 RC PF_FileHandle::GetFirstPage(PF_PageHandle& pageHandle) const
@@ -101,26 +101,30 @@ RC PF_FileHandle::DisposePage  (PageNum pageNum)
 {
   if (!isOpen)
     return PF_CLOSEDFILE;
+
   return OK;
 }
 
-RC PF_FileHandle::MarkDirty    (PageNum pageNum) const
+RC PF_FileHandle::MarkDirty(PageNum pageNum) const
 {
   if (!isOpen)
     return PF_CLOSEDFILE;
-  return OK;
+
+  return bufferPool->MarkDirty(fd, pageNum);
 }
 
-RC PF_FileHandle::UnpinPage    (PageNum pageNum) const
+RC PF_FileHandle::UnpinPage(PageNum pageNum) const
 {
   if (!isOpen)
     return PF_CLOSEDFILE;
-  return OK;
+
+  return bufferPool->UnpinPage(fd, pageNum);
 }
 
-RC PF_FileHandle::ForcePages   (PageNum pageNum = ALL_PAGES) const
+RC PF_FileHandle::ForcePages(PageNum pageNum = ALL_PAGES) const
 {
   if (!isOpen)
     return PF_CLOSEDFILE;
-  return OK;
+  
+  return bufferPool->ForcePages(pageNum);
 }

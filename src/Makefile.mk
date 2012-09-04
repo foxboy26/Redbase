@@ -1,3 +1,4 @@
+# p
 # each file should specify the following variables
 #programs     :=
 #sources      :=

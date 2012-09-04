@@ -4,18 +4,18 @@
 
 struct PF_FileHdr
 {
-  int pageNum;
-  int firstPage;
+  int numPages;
+  int firstFree;
 };
 
 class PF_FileHandle
 {
   friend class PF_Manager;
 public:
-  PF_FileHandle  ();
-  ~PF_FileHandle ();
-  PF_FileHandle  (const PF_FileHandle& fileHandle);
-  PF_FileHandle& operator= (const PF_FileHandle& fileHandle);
+  PF_FileHandle   ();
+  ~PF_FileHandle  ();
+  PF_FileHandle   (const PF_FileHandle& fileHandle);
+  PF_FileHandle&  operator= (const PF_FileHandle& fileHandle);
 
   RC GetFirstPage (PF_PageHandle& pageHandle) const;
   RC GetLastPage  (PF_PageHandle& pageHandle) const;

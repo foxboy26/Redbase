@@ -1,7 +1,6 @@
 #include "PF_PageHandle.h"
 
 PF_PageHandle::PF_PageHandle()
-: pageNum_(-1), pData_(NULL)
 {
 }
 
@@ -9,21 +8,21 @@ PF_PageHandle::~PF_PageHandle()
 {
 }
 
-PF_PageHandle::PF_PageHandle(const PF_FileHandle& fileHandle)
+PF_PageHandle::PF_PageHandle(const PF_PageHandle& pageHandle)
 {
-  this->pageNum_ = fileHandle.pageNum_;
-  this->pData_ = fileHandle.pData_;
+  this->pageNum = pageHandle.pageNum;
+  this->pData = pageHandle.pData;
 }
 
-PF_PageHandle& PF_PageHandle::operator=(const PF_FileHandle& fileHandle)
+PF_PageHandle& PF_PageHandle::operator=(const PF_PageHandle& pageHandle)
 {
-  if (this != &fileHandle)
+  if (this != &pageHandle)
   {
-    this->pageNum_ = fileHandle.pageNum_;
-    this->pData_ = fileHandle.pData_;
+    this->pageNum = pageHandle.pageNum;
+    this->pData = pageHandle.pData;
   }
 
-  return (*this);
+  return *this;
 }
 
 RC PF_PageHandle::GetData(char*& pData) const
@@ -31,17 +30,17 @@ RC PF_PageHandle::GetData(char*& pData) const
   if (this->pData_ == NULL)
     return PF_PAGEUNPINNED;
 
-  pData = this->pData_;
+  pData = this->pData;
 
   return OK;
 }
 
 RC PF_PageHandle::GetPageNum(PageNum &pageNum) const
 {
-  if (this->pData_ == NULL)
+  if (this->pData == NULL)
     return PF_PAGEUNPINNED;
 
-  pageNum = this->pageNum_;
+  pageNum = this->pageNum;
 
   return OK;
 }
