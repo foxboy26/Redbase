@@ -4,25 +4,20 @@
 #include <string>
 #include <ctime>
 
-enum loglevel {ERROR, WARNING, DEBUG};
+enum class LogLevel : std::int8_t {INFO = 0, DEBUG = 1, WARNING = 2, ERROR = 3};
+const char* levelName[] = {" INFO", "DEBUG", " WARN", "ERROR"}; 
 
-class log
+class Log
 {
 public:
-  static const loglevel error = ERROR;
-  static const loglevel warning = WARNING;
-  static const loglevel debug = DEBUG;
-  
-  static const char* levelName[];
   static char timeBuffer[20];
-  
+
   static char* getTime();
 };
 
-const char* log::levelName[] = {"Error", "Warning", "Debug"}; 
-char log::timeBuffer[20];
+char Log::timeBuffer[20];
 
-inline char* log::getTime()
+inline char* Log::getTime()
 {
   time_t current;
   struct tm* timeinfo;
@@ -30,6 +25,7 @@ inline char* log::getTime()
   time(&current);
   timeinfo = localtime(&current);
 
+  // format time into mm/dd/yy hh:MM::ss
   strftime(timeBuffer, 20, "%x %X", timeinfo);
 
   return timeBuffer;
@@ -39,16 +35,17 @@ inline char* log::getTime()
 class setl
 {
 public:
-  explicit setl(loglevel _level) : level(_level) {}
+  explicit setl(LogLevel _level) : level(_level) {}
 private:
-  loglevel level;
+  LogLevel level;
 
   template <class charT, class Traits>
   friend std::basic_ostream<charT, Traits>& operator<<
   (std::basic_ostream<charT, Traits>& os, const setl& l)
   {
-    os << "- " << log::getTime();
-    os << " " << log::levelName[l.level] << ": ";
+    os << "- " << Log::getTime() << " [" << levelName[static_cast<int>(l.level)] << "] ";
     os.flush();
+
+    return os;
   }
 };
