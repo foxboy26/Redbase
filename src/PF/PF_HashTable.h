@@ -14,7 +14,7 @@ struct PF_HashEntry
 class PF_HashTable
 {
 public:
-  PF_HashTable  (unsigned int numBuckets);
+  PF_HashTable  (int numBuckets);
   ~PF_HashTable ();
 
   RC Find       (const int fd, const PageNum pageNum, int& slot);

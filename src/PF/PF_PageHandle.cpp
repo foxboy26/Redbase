@@ -27,7 +27,7 @@ PF_PageHandle& PF_PageHandle::operator=(const PF_PageHandle& pageHandle)
 
 RC PF_PageHandle::GetData(char*& pData) const
 {
-  if (this->pData_ == NULL)
+  if (this->pData == NULL)
     return PF_PAGEUNPINNED;
 
   pData = this->pData;

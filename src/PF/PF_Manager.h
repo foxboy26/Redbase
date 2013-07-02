@@ -13,6 +13,7 @@ public:
   RC CloseFile     (PF_FileHanlde& fileHandle);
   RC AllocateBlock (char*& buffer);
   RC DisposeBlock  (char* buffer);
+
 private:
   PF_BufferPool    *bufferPool;
 

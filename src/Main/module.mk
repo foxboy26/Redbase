@@ -1,1 +1,1 @@
-SRCS += Main/RedBase.cpp
+SRC += main/RedBase.cpp
