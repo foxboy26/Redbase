@@ -1,4 +1,5 @@
 #include "PF.h"
+#include "Error.h"
 
 #include <cstdio>
 #include <cerrno>
@@ -29,7 +30,12 @@ static const char* const PF_ErrorMsg[] =
   "invalid file name"
 };
 
-void PF_PrintError(RC rc)
+class PF_Error : public Error
+{
+  void PrintError();
+};
+
+void PF_Error::PrintError(RC rc)
 {
   if (rc >= START_PF_WARN && rc <= END_PF_WARN)
   {
