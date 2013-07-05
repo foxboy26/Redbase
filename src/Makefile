@@ -9,7 +9,7 @@ SRC :=
 LIBS :=
 
 # add module name
-MODULES  := main pf 
+MODULES  := main pf log 
 
 CXX      := clang++ 
 CXXFLAGS := -std=c++11 -stdlib=libc++ -Weverything -g
