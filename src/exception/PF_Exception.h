@@ -1,13 +1,23 @@
 #include "Exception.h"
 
+#include <sstream>
+
+/* for test only */
 #include <iostream>
+using namespace std;
 
 class PF_Exception : public Exception
 {
 public:
-  enum class RC : std::int8_t 
+  enum RC : std::int8_t 
   {
-    ABC
+    PAGEPINNED,
+    PAGENOTINBUF,
+    PAGEUNPINNED,
+    PAGEFREE,
+    INVALIDPAGE,
+    FILEOPEN,
+    CLOSEDFILE
   };
 
   PF_Exception(PF_Exception::RC rc) : rc(rc) {}
@@ -16,12 +26,14 @@ public:
 
 private:
   RC rc;
+  static const char* const module;
   static const char* const message[];
 };
 
+const char* const PF_Exception::module = "PF";
+
 const char* const PF_Exception::message[] = 
 {
-  "end of file",
   "page pinned in buffer",
   "page to be unpinned is not in buffer",
   "page already unpinned",
@@ -43,16 +55,5 @@ const char* const PF_Exception::message[] =
 
 const char* PF_Exception::what() const throw()
 {
-  return message[static_cast<int>(rc)];
-}
-
-int main()
-{
-  try {
-    throw PF_Exception(PF_Exception::RC::aaa);
-  } catch (PF_Exception e) {
-    std::cerr << e.what() << std::endl;
-  }
-
-  return 0;
+  return PrintMessage(module, message[static_cast<int> (rc)]).c_str();
 }
