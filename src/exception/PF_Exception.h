@@ -7,7 +7,6 @@ class PF_Exception : public Exception
 public:
   enum class RC : std::int8_t 
   {
-    aaa,
     ABC
   };
 
@@ -22,8 +21,24 @@ private:
 
 const char* const PF_Exception::message[] = 
 {
-  "eof",
-  "abc"
+  "end of file",
+  "page pinned in buffer",
+  "page to be unpinned is not in buffer",
+  "page already unpinned",
+  "page already free",
+  "invalid page number",
+  "file handle already open",
+  "file is closed",
+  "no memory",
+  "no buffer space",
+  "incomplete read of page from file",
+  "incomplete write of page to file",
+  "incomplete read of header from file",
+  "incomplete write of header from file",
+  "new page to be allocated already in buffer",
+  "hash table entry not found",
+  "page already in hash table",
+  "invalid file name"
 };
 
 const char* PF_Exception::what() const throw()
