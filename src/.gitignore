@@ -3,3 +3,4 @@
 dep/
 obj/
 *.out
+test.cpp
