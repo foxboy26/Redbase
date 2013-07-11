@@ -8,26 +8,26 @@ using namespace std;
 
 class PF_Exception : public Exception
 {
-public:
-  enum RC : std::int8_t 
-  {
-    PAGEPINNED,
-    PAGENOTINBUF,
-    PAGEUNPINNED,
-    PAGEFREE,
-    INVALIDPAGE,
-    FILEOPEN,
-    CLOSEDFILE
-  };
+  public:
+    enum RC : std::int8_t 
+    {
+      PAGEPINNED,
+      PAGENOTINBUF,
+      PAGEUNPINNED,
+      PAGEFREE,
+      INVALIDPAGE,
+      FILEOPEN,
+      CLOSEDFILE
+    };
 
-  PF_Exception(PF_Exception::RC rc) : rc(rc) {}
+    PF_Exception(PF_Exception::RC rc) : rc(rc) {}
 
-  const char* what() const throw();
+    const char* what() const throw();
 
-private:
-  RC rc;
-  static const char* const module;
-  static const char* const message[];
+  private:
+    RC rc;
+    static const char* const module;
+    static const char* const message[];
 };
 
 const char* const PF_Exception::module = "PF";
