@@ -1,6 +1,9 @@
 #include "PF_PageHandle.h"
 
-PF_PageHandle::PF_PageHandle()
+#include <iostream>
+using namespace std;
+
+PF_PageHandle::PF_PageHandle() : pageNum(-1), pData(nullptr)
 {
 }
 
@@ -25,22 +28,18 @@ PF_PageHandle& PF_PageHandle::operator=(const PF_PageHandle& pageHandle)
   return *this;
 }
 
-RC PF_PageHandle::GetData(char*& pData) const
+char* PF_PageHandle::GetData() const
 {
-  if (this->pData == NULL)
-    return PF_PAGEUNPINNED;
+  if (this->pData == nullptr)
+    throw PF_Exception(PF_Exception::PAGEUNPINNED);
 
-  pData = this->pData;
-
-  return OK;
+  return this->pData;
 }
 
-RC PF_PageHandle::GetPageNum(PageNum &pageNum) const
+PageNum PF_PageHandle::GetPageNum() const
 {
-  if (this->pData == NULL)
-    return PF_PAGEUNPINNED;
+  if (this->pData == nullptr)
+    throw PF_Exception(PF_Exception::PAGEUNPINNED);
 
-  pageNum = this->pageNum;
-
-  return OK;
+  return this->pageNum;
 }

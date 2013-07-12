@@ -4,16 +4,15 @@
 
 class PF_PageHandle
 {
-  friend class PF_PageHandle;
+  friend class PF_FileHandle;
 public:
   PF_PageHandle  ();
   ~PF_PageHandle ();
   PF_PageHandle  (const PF_PageHandle& pageHandle);
   PF_PageHandle& operator= (const PF_PageHandle& pageHandle);
 
-  RC GetData     (char*& pData) const;
-
-  RC GetPageNum  (PageNum &pageNum) const;
+  char* GetData() const;
+  PageNum GetPageNum() const;
 private:
   PageNum pageNum;
   char* pData;
