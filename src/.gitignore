@@ -1,6 +1,7 @@
 *.o
 *.d
+*.out
+*.dSYM
 dep/
 obj/
-*.out
 test.cpp
