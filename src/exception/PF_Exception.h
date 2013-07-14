@@ -13,7 +13,10 @@ class PF_Exception : public Exception
       PAGEFREE,
       INVALIDPAGE,
       FILEOPEN,
-      CLOSEDFILE
+      CLOSEDFILE,
+      INCOMPLETEREAD,
+      INCOMPLETEWRITE,
+      NOTIMPLEMENTED
     };
 
     PF_Exception(PF_Exception::RC _rc) : rc(_rc) {}
@@ -45,11 +48,3 @@ class PF_Exception : public Exception
 
     RC rc;
 };
-
-constexpr const char* PF_Exception::module;
-constexpr const char* PF_Exception::message[];
-
-const char* PF_Exception::what() const throw()
-{
-  return PrintMessage(module, message[static_cast<int> (rc)]).c_str();
-}

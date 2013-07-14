@@ -1,22 +1,12 @@
 #pragma once
 
 #include <exception>
-#include <sstream>
+#include <string>
 
 class Exception : public std::exception
 {
   public:
     virtual const char* what() const throw();
   protected:
-    std::string PrintMessage(const char* module, const char* message) const
-    {
-      std::stringstream ss;
-      ss << "Exception: [" << module << "] " << message;
-      return ss.str();
-    }
+    std::string PrintMessage(const char* module, const char* message) const;
 };
-
-const char* Exception::what() const throw()
-{
-  return "General exception";
-}
