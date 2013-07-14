@@ -1,6 +1,8 @@
 # each Makefile.mk in the sub folder should specify the following variables
 # SRC +=
 
+# include common definition
+include Makefile.mk
 
 # each module will add to this
 SRC :=
@@ -11,8 +13,6 @@ LIBS :=
 # add module name
 MODULES  := main pf log exception 
 
-CXX      := clang++ 
-CXXFLAGS := -std=c++11 -stdlib=libc++ -Weverything -g
 CPPFLAGS += $(patsubst %,-I%,$(MODULES))
 
 # include the description for each module
@@ -22,7 +22,7 @@ include $(patsubst %,%/module.mk,$(MODULES))
 OBJ := $(patsubst %.cpp,%.o,$(filter %.cpp,$(SRC))) $(patsubst %.y,%.o,$(filter %.y,$(SRC)))
 
 # link the program
-program: $(OBJ)
+redbase: $(OBJ)
 	$(CXX) -o $@ $(OBJ) $(LIBS)
 
 # include the include dependencies
@@ -37,4 +37,4 @@ all: program
 
 .PHONY: clean
 clean:
-	$(RM) $(OBJ) $(programs) $(dependencies)
+	$(RM) $(OBJ) redbase 
