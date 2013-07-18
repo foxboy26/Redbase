@@ -34,16 +34,9 @@ class PF_Exception : public Exception
       "invalid page number",
       "file handle already open",
       "file is closed",
-      "no memory",
-      "no buffer space",
       "incomplete read of page from file",
       "incomplete write of page to file",
-      "incomplete read of header from file",
-      "incomplete write of header from file",
-      "new page to be allocated already in buffer",
-      "hash table entry not found",
-      "page already in hash table",
-      "invalid file name"
+      "not implemented"
     };
 
     RC rc;

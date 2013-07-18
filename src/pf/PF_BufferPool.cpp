@@ -1,215 +1,162 @@
-#include "PF_BufferPool"
+#include "PF_BufferPool.h"
 
 #include <sys/types.h>
 #include <unistd.h>
 
-PF_BufferPool::PF_BfferPage::PF_BufferPage() : isDirty(false), pinCount(0), clock(0)
+#include <unordered_map>
+
+PF_BufferPool::PF_BufferPage::PF_BufferPage() : isDirty(false), pinCount(0), refBit(0)
 {
   pData = new char[pageSize];
   memset(pData, 0, PF_PAGE_SIZE);
 }
 
-PF_BufferPool::PF_BfferPage::~PF_BufferPage()
+PF_BufferPool::PF_BufferPage::~PF_BufferPage()
 {
   delete [] pData;
-  pData = NULL;
+  pData = nullptr;
 }
 
-PF_BufferPool::PF_BufferPool(int numPages) : hashTable(PF_HASH_TBL_SIZE), numPages(numPages), pageSize(PF_PAGE_SIZE)
+PF_BufferPool::PF_BufferPool(int bufferSize) : bufferSize(bufferSize), pageSize(PF_PAGE_SIZE), hand(-1)
 {
-  bufferPool = new PF_BufferPage[numPages];
+  bufferPool = new PF_BufferPage[bufferSize];
 }
 
 PF_BufferPool::~PF_BufferPool()
 {
   delete [] bufferPool;
-  bufferPool = NULL;
+  bufferPool = nullptr;
 }
 
-RC PF_BufferPool::GetPage(int fd, PageNum pageNum, char** ppBuffer)
+void PF_BufferPool::GetPage(int fd, PageNum pageNum, char*& pData)
 {
-  RC rc;
   int slot;
 
-  rc = hashTable.Find(fd, pageNum, slot);
-  if (rc != OK && RC != PF_HASHNOTFOUND) return rc;
-
-  if (rc == PF_HASHNOTFOUND)
+  auto res = indexMap.find(std::make_pair<int, PageNum>(fd, pageNum));
+  if (res == indexMap.end())
   {
-    rc = InternalAllocate(fd, pageNum, slot);
-    if (rc != OK) return rc;
+    // page fault
+    slot = InternalAllocate(fd, pageNum);
 
-    rc = ReadPage(bufferPool[slot]);
-    if (rc != OK) return rc;
+    bufferPool[slot].fd = fd;
+    bufferPool[slot].pageNum = pageNum;
+
+    ReadPage(bufferPool[slot]);
+  }
+  else
+  {
+    // hit
+    slot = res->second;
   }
 
-  PF_BufferPage& page = bufferPool[slot];
+  bufferPool[slot].pinCount++;
 
-  page.pinCount++;
-
-  *ppBuffer = page.pData;
-
-  page.clock = 1;
-
-  return OK;
+  pData = page.pData;
 }
 
-RC PF_BufferPool::AllocatePage(int fd, PageNum pageNum, char** ppBuffer)
+void PF_BufferPool::MarkDirty(int fd, PageNum pageNum)
 {
-  RC rc;
+  auto res = indexMap.find(std::make_pair<int, PageNum>(fd, pageNum));
+  if (res == indexMap.end())
+    throw PF_Exception(PF_Exception::PAGENOTINBUF);
 
-  rc = InternalAllocate(fd, pageNum, slot);
-
-  if (rc != OK) return rc;
+  int slot = res->second;
 
   PF_BufferPage& page = bufferPool[slot];
 
-  page.pinCount++;
-
-  *ppBuffer = page.pData;
-
-  page.clock = 1;
-
-  return OK;
-}
-
-RC PF_BufferPool::MarkDirty(int fd, PageNum pageNum)
-{
-  RC rc;
-  int slot;
-
-  rc = hashTable.Find(fd, pageNum, slot);
-
-  if (rc != OK) return rc;
-
-  PF_BufferPage& page = bufferPool[slot];
-
-  if (page.pinCount == 0) return PF_PAGEUNPINNED;
+  if (page.pinCount == 0)
+    throw PF_Exception(PF_Exception::PAGEUNPINNED);
 
   page.isDirty = true;
-  
-  page.clock = 1;
-  
-  return OK;
 }
 
-RC PF_BufferPool::UnpinPage(int fd, PageNum pageNum)
+void PF_BufferPool::UnpinPage(int fd, PageNum pageNum)
 {
-  RC rc;
-  int slot;
+  auto res = indexMap.get(std::make_pair<int, PageNum>(fd, pageNum));
+  if (res == indexMap.end())
+    throw PF_Exception(PF_Exception::PAGENOTINBUF);
 
-  rc = hashTable.Find(fd, pageNum, slot);
+  int slot = res->second;
 
-  if (rc != OK) return rc;
-
-  if (bufferPool[slot].pinCount == 0) return PF_PAGEUNPINNED;
+  if (bufferPool[slot].pinCount == 0)
+    throw PF_Exception(PF_Exception::PAGEUNPINNED);
 
   bufferPool[slot].pinCount--;
-
-  page.clock = 0;
-
-  return OK;
 }
 
-RC PF_BufferPool::ForcePage(int fd, PageNum pageNum = ALL_PAGES)
+void PF_BufferPool::ForcePage(int fd, PageNum pageNum = ALL_PAGES)
 {
   RC rc;
   PF_BufferPage& page
 
   if (pageNum == ALL_PAGES)
   {
-    for (int i = 0; i < numPages; i++)
+    for (int i = 0; i < bufferSize; i++)
     {
       if (bufferPool[i].fd == fd)
       {
-        rc = WritePage(bufferPool[i]);
-        if (rc != OK) return rc;
+        FlushPage(bufferPool[i]);
       }
     }
   }
   else
   {
-    int slot;
+    auto res = indexMap.get(std::make_pair<int, PageNum>(fd, pageNum));
+    if (res == indexMap.end())
+      throw PF_Exception(PF_Exception::PAGENOTINBUF);
 
-    rc = hashTable.Find(fd, pageNum, slot);
-    if (rc != OK) return rc;
-
-    rc = WritePage(bufferPool[slot]);
-    if (rc != OK) return rc;
+    FlushPage(bufferPool[res->second]);
   }
-
-  return OK;
 }
 
-RC PF_BufferPool::AllocateBlock(char*& buffer)
+void PF_BufferPool::AllocateBlock(char*& buffer)
 {
-  return OK;  
+  throw PF_Exception(PF_Exception::NOTIMPLEMENTED);
 }
 
-RC PF_BufferPool::DisposeBlock(char* buffer)
+void PF_BufferPool::DisposeBlock(char* buffer)
 {
-  return OK;  
+  throw PF_Exception(PF_Exception::NOTIMPLEMENTED);
 }
 
-RC FlushPage(PF_BufferPage& page)
+void FlushPage(PF_BufferPage& page)
 {
-  RC rc;
-  int slot;
+  std::pair<int, PageNum> key = std::make_pair<int, PageNum> (page.fd, page.pageNum);
 
-  rc = hashTable.Find(page.fd, page.pageNum, slot);
-  if (rc != OK) return rc;
+  auto res = indexMap.find(key);
+  if (res != indexMap.end())
+  {
+    if (page.pinCount > 0)
+      throw PF_Exception(PF_Exception::PAGEPINNED);
 
-  rc = WritePage(bufferPool[slot]);
-  if (rc != OK) return rc;
+    WritePage(page);
 
-  rc = hashTable.Delete(page.fd, page.pageNum);
-  if (rc != OK) return rc;
+    indexMap.remove(key);
 
-  page.pinCount = 0;
-
-  page.clock = 0;
-
-  return OK;  
+    page.pinCount = 0;
+    page.ref = 0;
+    page.isDirty = false;
+  }
+  else
+    throw PF_Exception(PF_Exception::PAGENOTINBUF);
 }
-/*
-RC FlushPage(int fd, PageNum pageNum)
-{
-  RC rc;
-  int slot;
 
-  rc = hashTable.Find(fd, pageNum, slot);
-  if (rc != OK) return rc;
-
-  rc = WritePage(bufferPool[slot]);
-  if (rc != OK) return rc;
-
-  rc = hashTable.Delete(fd, pageNum);
-  if (rc != OK) return rc;
-
-  page.pinCount = 0;
-
-  page.clock = 0;
-
-  return OK;  
-}*/
-
-
-RC PF_BufferPool::WritePage(PF_BufferPage& page)
+void PF_BufferPool::WritePage(PF_BufferPage& page)
 {
   if (page.isDirty)
   {
     off_t offset = page.pageNum * this->pageSize;
 
     if (lseek(page.fd, offset, SEEK_SET) < 0)
-      return PF_UNIX;
+      throw PF_Exception(PF_Exception::UNIX);
     
     size_t numBytes = write(page.fd, page.pData, pageSize);
 
     if (numBytes < 0)
-      return PF_UNIX;
+      throw PF_Exception(PF_Exception::UNIX);
 
     if (numBytes < pageSize)
-      return PF_INCOMPLETEWRITE;
+      throw PF_Exception(PF_Exception::INCOMPLETEWRITE);
 
     page.isDirty = false;
   }
@@ -217,109 +164,61 @@ RC PF_BufferPool::WritePage(PF_BufferPage& page)
   return OK;
 }
 
-RC PF_BufferPool::ReadPage(PF_BufferPage& page)
+void PF_BufferPool::ReadPage(PF_BufferPage& page)
 {
-  off_t offset = page.pageNum * pageSize;
+  off_t offset = page.pageNum * this->pageSize;
 
   if (lseek(page.fd, offset, SEEK_SET) < 0)
-    return PF_UNIX;
+    throw PF_Exception(PF_Exception::UNIX);
   
   size_t numBytes = read(page.fd, page.pData, pageSize);
 
   if (numBytes < 0)
-    return PF_UNIX;
+    throw PF_Exception(PF_Exception::UNIX);
 
   if (numBytes < pageSize)
-    return PF_INCOMPLETEREAD;
-
-  return OK;
+    throw PF_Exception(PF_Exception::INCOMPLETEREAD);
 }
 
 /*
-RC PF_BufferPool::WritePage(int fd, PageNum pageNum, const char* src)
+ * Choose the next free slot, flush page if the slot is exists
+ * Update indexMap
+ * Return slot
+ */
+int PF_BufferPool::InternalAllocate(int fd, PageNum pageNum)
 {
-  off_t offset = pageNum * pageSize;
+  int slot = ChooseNextSlot();
 
-  if (lseek(fd, offset, SEEK_SET) < 0)
-    return PF_UNIX;
-  
-  int numBytes = write(fd, src, pageSize);
-
-  if (numBytes < 0)
-    return PF_UNIX;
-
-  if (numBytes < pageSize)
-    return PF_INCOMPLETEWRITE;
-
-  return OK;
-}
-
-RC PF_BufferPool::ReadPage(int fd, PageNum pageNum, const char* dest)
-{
-  off_t offset = pageNum * pageSize;
-
-  if (lseek(fd, offset, SEEK_SET) < 0)
-    return PF_UNIX;
-  
-  int numBytes = read(fd, dest, pageSize);
-
-  if (numBytes < 0)
-    return PF_UNIX;
-
-  if (numBytes < pageSize)
-    return PF_INCOMPLETEREAD;
-
-  return OK;
-}*/
-
-RC PF_BufferPool::InternalAllocate(int fd, PageNum pageNum, int& slot)
-{
-  RC rc;
-  
-  if (/*free*/)
+  if (!bufferPool[slot].isFree())
   {
-    slot = free;
-  }
-  else
-  {
-    rc = ChooseNextSlot(slot);
-    if (rc != OK) return rc;
-
-    rc = FlushPage(bufferPool[slot]);
-    if (rc != OK) return rc;
-
-    //PF_BufferPage& oldPage = bufferPool[slot];
-    //rc = FlushPage(oldPage.fd, oldPage.pageNum);
+    FlushPage(bufferPool[slot]);
   }
 
-  rc = hashTable.Insert(fd, pageNum, slot);
+  indexMap.put(std::make_pair<int, PageNum>(fd, pageNum));
 
-  if (rc != OK) return rc;
-  
-  return OK;
+  return slot;
 }
 
-RC PF_BufferPool::ChooseNextSlot(int& slot)
+// using clock algorithm (second chance)
+int PF_BufferPool::ChooseNextSlot()
 {
-  // using clock algorithm (second chance)
-  int chance = 0;
+  int slot = -1;
 
-  while (chance < 2)
+  while (true)
   {
-    hand = (hand == numPages)? 0 : hand + 1;
+    hand++;
+    if (hand == bufferSize)
+      hand = 0;
 
-    if (bufferPool[hand].clock == 0)
-      chance++;
-    else
-      bufferPool[hand].clock == 0;
+    if (bufferPool[hand].refBit == 0) {
+      bufferPool[hand].refBit = 1;
+      slot = hand;
+      break;
+    }
+    else {
+      bufferPool[hand].refBit == 0;
+    }
   }
 
-  slot = hand;
-
-  return OK;
-}
-
-RC PF_BufferPool::Print()
-{
-  return OK;
+  return slot;
 }

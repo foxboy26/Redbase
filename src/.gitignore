@@ -4,4 +4,3 @@
 *.dSYM
 dep/
 obj/
-test.cpp

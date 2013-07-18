@@ -1,5 +1,8 @@
 #include "PF_FileHandle.h"
 
+#include <cassert>
+using namespace std;
+
 PF_FileHandle::PF_FileHandle()
 : fd(-1), isOpen(false), fileHdr(-1, -1), bufferPool(NULL)
 {
@@ -62,7 +65,7 @@ RC PF_FileHandle::GetNextPage(PageNum current, PF_PageHandle& pageHandle) const
   return PF_EOF;
 }
 
-RC PF_FileHandle::GetPrevPage  (PageNum current, PF_PageHandle& pageHandle) const
+RC PF_FileHandle::GetPrevPage(PageNum current, PF_PageHandle& pageHandle) const
 {
   if (!isOpen)
     return PF_CLOSEDFILE;
@@ -83,48 +86,38 @@ RC PF_FileHandle::GetPrevPage  (PageNum current, PF_PageHandle& pageHandle) cons
   return PF_EOF;
 }
 
-RC PF_FileHandle::GetThisPage  (PageNum pageNum, PF_PageHandle& pageHandle) const
+void PF_FileHandle::GetThisPage(PageNum pageNum, PF_PageHandle& pageHandle) const
 {
-  if (!isOpen)
-    return PF_CLOSEDFILE;
-  return OK;
+  assert(isOpen);
+
+  bufferPool->GetPage(fd, pageNum, pageHandle.pData);
 }
 
-RC PF_FileHandle::AllocatePage (PF_PageHandle& pageHandle)
+RC PF_FileHandle::AllocatePage(PF_PageHandle& pageHandle)
 {
-  if (!isOpen)
-    return PF_CLOSEDFILE;
-  return OK;
 }
 
-RC PF_FileHandle::DisposePage  (PageNum pageNum)
+RC PF_FileHandle::DisposePage(PageNum pageNum)
 {
-  if (!isOpen)
-    return PF_CLOSEDFILE;
-
-  return OK;
 }
 
 RC PF_FileHandle::MarkDirty(PageNum pageNum) const
 {
-  if (!isOpen)
-    return PF_CLOSEDFILE;
+  assert(isOpen);
 
   return bufferPool->MarkDirty(fd, pageNum);
 }
 
 RC PF_FileHandle::UnpinPage(PageNum pageNum) const
 {
-  if (!isOpen)
-    return PF_CLOSEDFILE;
+  assert(isOpen);
 
   return bufferPool->UnpinPage(fd, pageNum);
 }
 
 RC PF_FileHandle::ForcePages(PageNum pageNum = ALL_PAGES) const
 {
-  if (!isOpen)
-    return PF_CLOSEDFILE;
+  assert(isOpen);
   
   return bufferPool->ForcePages(pageNum);
 }
