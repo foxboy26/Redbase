@@ -7,7 +7,7 @@ SRC :=
 CPPFLAGS += $(patsubst %,-I../../%,$(MODULES))
 
 # include the description for each module
-include $(patsubst %,../../%/module.mk,$(MODULES))
+include $(patsubst %,../../%/module_test.mk,$(MODULES))
 SRC := $(patsubst %,../../%,$(SRC))
 
 SRC += test.cpp

@@ -5,9 +5,11 @@
 typedef int PageNum;
 
 //static const int PF_PAGE_SIZE = 4092;
-static const int PF_PAGE_SIZE = 4092 + 4;
+static const size_t PF_PAGE_SIZE = 4092 + 4;
 
 static const int PF_BUFFER_SIZE = 40;
+
+static const int ALL_PAGES = -1;
 
 class PF_Manager;
 

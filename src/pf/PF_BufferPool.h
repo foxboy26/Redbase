@@ -2,14 +2,27 @@
 
 #include "PF.h"
 
+#include <unordered_map>
+#include <utility>
+
+namespace std {
+  template <>
+    struct hash<pair<int, PageNum>> {
+      public :
+        size_t operator()(const pair<int, PageNum> &key) const
+        {
+          return key.first ^ key.second;
+        }
+    };
+};
+
 class PF_BufferPool
 {
   public:
     PF_BufferPool(int bufferSize);
     ~PF_BufferPool();
 
-    void GetPage(int fd, PageNum pageNum, char** ppBuffer);
-    void AllocatePage(int fd, PageNum pageNum, char** ppBuffer);
+    void GetPage(int fd, PageNum pageNum, char*& ppBuffer);
     void MarkDirty(int fd, PageNum pageNum);
     void UnpinPage(int fd, PageNum pageNum);
     void ForcePage(int fd, PageNum pageNum = ALL_PAGES);
@@ -22,7 +35,9 @@ class PF_BufferPool
       public:
         PF_BufferPage();
         ~PF_BufferPage();
-      private:
+        bool isFree();
+        void Clear();
+
         int     fd;
         PageNum pageNum;
         bool    isDirty;
@@ -32,14 +47,14 @@ class PF_BufferPool
     };
 
     int bufferSize;
-    int pageSize;
+    size_t pageSize;
     PF_BufferPage* bufferPool;
     int hand;
     std::unordered_map<std::pair<int, PageNum>, int> indexMap;
 
-    RC FlushPage(int fd, PageNum pageNum);
-    RC WritePage(PF_BufferPage& page);
-    RC ReadPage(PF_BufferPage& page);
+    void FlushPage(PF_BufferPage& page);
+    void WritePage(PF_BufferPage& page);
+    void ReadPage(PF_BufferPage& page);
     int InternalAllocate(int fd, PageNum pageNum);
     int ChooseNextSlot();
 };

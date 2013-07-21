@@ -16,7 +16,8 @@ class PF_Exception : public Exception
       CLOSEDFILE,
       INCOMPLETEREAD,
       INCOMPLETEWRITE,
-      NOTIMPLEMENTED
+      NOTIMPLEMENTED,
+      UNIX
     };
 
     PF_Exception(PF_Exception::RC _rc) : rc(_rc) {}

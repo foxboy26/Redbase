@@ -3,11 +3,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <iostream>
 #include <unordered_map>
+#include <utility>
 
 PF_BufferPool::PF_BufferPage::PF_BufferPage() : isDirty(false), pinCount(0), refBit(0)
 {
-  pData = new char[pageSize];
+  pData = new char[PF_PAGE_SIZE];
   memset(pData, 0, PF_PAGE_SIZE);
 }
 
@@ -17,7 +19,20 @@ PF_BufferPool::PF_BufferPage::~PF_BufferPage()
   pData = nullptr;
 }
 
-PF_BufferPool::PF_BufferPool(int bufferSize) : bufferSize(bufferSize), pageSize(PF_PAGE_SIZE), hand(-1)
+void PF_BufferPool::PF_BufferPage::Clear()
+{
+  isDirty = false;
+  pinCount = 0;
+  refBit = 0;
+  memset(pData, 0, PF_PAGE_SIZE);
+}
+
+bool PF_BufferPool::PF_BufferPage::isFree()
+{
+  return true;
+}
+
+PF_BufferPool::PF_BufferPool(int _bufferSize) : bufferSize(_bufferSize), pageSize(PF_PAGE_SIZE), hand(-1)
 {
   bufferPool = new PF_BufferPage[bufferSize];
 }
@@ -32,7 +47,7 @@ void PF_BufferPool::GetPage(int fd, PageNum pageNum, char*& pData)
 {
   int slot;
 
-  auto res = indexMap.find(std::make_pair<int, PageNum>(fd, pageNum));
+  auto res = indexMap.find(std::pair<int, PageNum>(fd, pageNum));
   if (res == indexMap.end())
   {
     // page fault
@@ -51,12 +66,12 @@ void PF_BufferPool::GetPage(int fd, PageNum pageNum, char*& pData)
 
   bufferPool[slot].pinCount++;
 
-  pData = page.pData;
+  pData = bufferPool[slot].pData;
 }
 
 void PF_BufferPool::MarkDirty(int fd, PageNum pageNum)
 {
-  auto res = indexMap.find(std::make_pair<int, PageNum>(fd, pageNum));
+  auto res = indexMap.find(std::pair<int, PageNum>(fd, pageNum));
   if (res == indexMap.end())
     throw PF_Exception(PF_Exception::PAGENOTINBUF);
 
@@ -72,7 +87,7 @@ void PF_BufferPool::MarkDirty(int fd, PageNum pageNum)
 
 void PF_BufferPool::UnpinPage(int fd, PageNum pageNum)
 {
-  auto res = indexMap.get(std::make_pair<int, PageNum>(fd, pageNum));
+  auto res = indexMap.find(std::pair<int, PageNum>(fd, pageNum));
   if (res == indexMap.end())
     throw PF_Exception(PF_Exception::PAGENOTINBUF);
 
@@ -84,11 +99,8 @@ void PF_BufferPool::UnpinPage(int fd, PageNum pageNum)
   bufferPool[slot].pinCount--;
 }
 
-void PF_BufferPool::ForcePage(int fd, PageNum pageNum = ALL_PAGES)
+void PF_BufferPool::ForcePage(int fd, PageNum pageNum)
 {
-  RC rc;
-  PF_BufferPage& page
-
   if (pageNum == ALL_PAGES)
   {
     for (int i = 0; i < bufferSize; i++)
@@ -101,7 +113,7 @@ void PF_BufferPool::ForcePage(int fd, PageNum pageNum = ALL_PAGES)
   }
   else
   {
-    auto res = indexMap.get(std::make_pair<int, PageNum>(fd, pageNum));
+    auto res = indexMap.find(std::pair<int, PageNum>(fd, pageNum));
     if (res == indexMap.end())
       throw PF_Exception(PF_Exception::PAGENOTINBUF);
 
@@ -119,23 +131,24 @@ void PF_BufferPool::DisposeBlock(char* buffer)
   throw PF_Exception(PF_Exception::NOTIMPLEMENTED);
 }
 
-void FlushPage(PF_BufferPage& page)
+void PF_BufferPool::FlushPage(PF_BufferPage& page)
 {
-  std::pair<int, PageNum> key = std::make_pair<int, PageNum> (page.fd, page.pageNum);
+  std::pair<int, PageNum> key = std::pair<int, PageNum> (page.fd, page.pageNum);
 
   auto res = indexMap.find(key);
   if (res != indexMap.end())
   {
     if (page.pinCount > 0)
-      throw PF_Exception(PF_Exception::PAGEPINNED);
+    {
+      std::cerr << "warning page pinnned" << std::endl;
+    }
+    
+    if (page.isDirty)
+    {
+      WritePage(page);
 
-    WritePage(page);
-
-    indexMap.remove(key);
-
-    page.pinCount = 0;
-    page.ref = 0;
-    page.isDirty = false;
+      page.isDirty = false;
+    }
   }
   else
     throw PF_Exception(PF_Exception::PAGENOTINBUF);
@@ -150,7 +163,7 @@ void PF_BufferPool::WritePage(PF_BufferPage& page)
     if (lseek(page.fd, offset, SEEK_SET) < 0)
       throw PF_Exception(PF_Exception::UNIX);
     
-    size_t numBytes = write(page.fd, page.pData, pageSize);
+    ssize_t numBytes = write(page.fd, page.pData, pageSize);
 
     if (numBytes < 0)
       throw PF_Exception(PF_Exception::UNIX);
@@ -160,8 +173,6 @@ void PF_BufferPool::WritePage(PF_BufferPage& page)
 
     page.isDirty = false;
   }
-
-  return OK;
 }
 
 void PF_BufferPool::ReadPage(PF_BufferPage& page)
@@ -171,7 +182,7 @@ void PF_BufferPool::ReadPage(PF_BufferPage& page)
   if (lseek(page.fd, offset, SEEK_SET) < 0)
     throw PF_Exception(PF_Exception::UNIX);
   
-  size_t numBytes = read(page.fd, page.pData, pageSize);
+  ssize_t numBytes = read(page.fd, page.pData, pageSize);
 
   if (numBytes < 0)
     throw PF_Exception(PF_Exception::UNIX);
@@ -192,9 +203,14 @@ int PF_BufferPool::InternalAllocate(int fd, PageNum pageNum)
   if (!bufferPool[slot].isFree())
   {
     FlushPage(bufferPool[slot]);
+
+    auto key = std::pair<int, PageNum> (bufferPool[slot].fd, bufferPool[slot].pageNum);
+    indexMap.erase(key);
+
+    bufferPool[slot].Clear();
   }
 
-  indexMap.put(std::make_pair<int, PageNum>(fd, pageNum));
+  indexMap.insert({std::pair<int, PageNum>(fd, pageNum), slot});
 
   return slot;
 }
@@ -210,13 +226,15 @@ int PF_BufferPool::ChooseNextSlot()
     if (hand == bufferSize)
       hand = 0;
 
-    if (bufferPool[hand].refBit == 0) {
+    if (bufferPool[hand].refBit == 0)
+    {
       bufferPool[hand].refBit = 1;
       slot = hand;
       break;
     }
-    else {
-      bufferPool[hand].refBit == 0;
+    else
+    {
+      bufferPool[hand].refBit = 0;
     }
   }
 
