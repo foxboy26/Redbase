@@ -37,7 +37,8 @@ class PF_Exception : public Exception
       "file is closed",
       "incomplete read of page from file",
       "incomplete write of page to file",
-      "not implemented"
+      "not implemented",
+      "unix"
     };
 
     RC rc;
