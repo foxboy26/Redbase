@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include <iostream>
+#include <list>
 #include <unordered_map>
 #include <utility>
 
@@ -27,14 +28,14 @@ void PF_BufferPool::PF_BufferPage::Clear()
   memset(pData, 0, PF_PAGE_SIZE);
 }
 
-bool PF_BufferPool::PF_BufferPage::isFree()
-{
-  return true;
-}
-
-PF_BufferPool::PF_BufferPool(int _bufferSize) : bufferSize(_bufferSize), pageSize(PF_PAGE_SIZE), hand(-1)
+PF_BufferPool::PF_BufferPool(int _bufferSize) : bufferSize(_bufferSize), pageSize(PF_PAGE_SIZE)
 {
   bufferPool = new PF_BufferPage[bufferSize];
+  for (int i = 0; i < bufferSize; i++)
+  {
+    freeSlots.push_back(i);
+  }
+  hand = usedSlots.begin();
 }
 
 PF_BufferPool::~PF_BufferPool()
@@ -99,7 +100,7 @@ void PF_BufferPool::UnpinPage(int fd, PageNum pageNum)
   bufferPool[slot].pinCount--;
 }
 
-void PF_BufferPool::ForcePage(int fd, PageNum pageNum)
+void PF_BufferPool::ForcePages(int fd, PageNum pageNum)
 {
   if (pageNum == ALL_PAGES)
   {
@@ -107,7 +108,7 @@ void PF_BufferPool::ForcePage(int fd, PageNum pageNum)
     {
       if (bufferPool[i].fd == fd)
       {
-        FlushPage(bufferPool[i]);
+        ForceSinglePage(bufferPool[i]);
       }
     }
   }
@@ -117,7 +118,7 @@ void PF_BufferPool::ForcePage(int fd, PageNum pageNum)
     if (res == indexMap.end())
       throw PF_Exception(PF_Exception::PAGENOTINBUF);
 
-    FlushPage(bufferPool[res->second]);
+    ForceSinglePage(bufferPool[res->second]);
   }
 }
 
@@ -131,7 +132,7 @@ void PF_BufferPool::DisposeBlock(char* buffer)
   throw PF_Exception(PF_Exception::NOTIMPLEMENTED);
 }
 
-void PF_BufferPool::FlushPage(PF_BufferPage& page)
+void PF_BufferPool::ForceSinglePage(PF_BufferPage& page)
 {
   std::pair<int, PageNum> key = std::pair<int, PageNum> (page.fd, page.pageNum);
 
@@ -152,6 +153,24 @@ void PF_BufferPool::FlushPage(PF_BufferPage& page)
   }
   else
     throw PF_Exception(PF_Exception::PAGENOTINBUF);
+}
+
+/*
+ * Require: page in the buffer pool.
+ */
+void PF_BufferPool::FlushPage(int fd)
+{
+  for (int i = 0; i < bufferSize; i++)
+  {
+    if (bufferPool[i].fd == fd)
+    {
+      ForceSinglePage(bufferPool[i]);
+      indexMap.erase(std::pair<int, PageNum>(fd, bufferPool[i].pageNum));
+      bufferPool[i].Clear();
+      usedSlots.remove(i);
+      freeSlots.push_back(i);
+    }
+  }
 }
 
 void PF_BufferPool::WritePage(PF_BufferPage& page)
@@ -198,11 +217,17 @@ void PF_BufferPool::ReadPage(PF_BufferPage& page)
  */
 int PF_BufferPool::InternalAllocate(int fd, PageNum pageNum)
 {
-  int slot = ChooseNextSlot();
-
-  if (!bufferPool[slot].isFree())
+  int slot;
+  if (!freeSlots.empty())
   {
-    FlushPage(bufferPool[slot]);
+    slot = freeSlots.front();
+    freeSlots.pop_front();
+  }
+  else
+  {
+    slot = ChooseNextSlot();
+
+    ForceSinglePage(bufferPool[slot]);
 
     auto key = std::pair<int, PageNum> (bufferPool[slot].fd, bufferPool[slot].pageNum);
     indexMap.erase(key);
@@ -211,6 +236,8 @@ int PF_BufferPool::InternalAllocate(int fd, PageNum pageNum)
   }
 
   indexMap.insert({std::pair<int, PageNum>(fd, pageNum), slot});
+
+  usedSlots.push_back(slot);
 
   return slot;
 }
@@ -223,18 +250,18 @@ int PF_BufferPool::ChooseNextSlot()
   while (true)
   {
     hand++;
-    if (hand == bufferSize)
-      hand = 0;
+    if (hand == usedSlots.end())
+      hand = usedSlots.begin();
 
-    if (bufferPool[hand].refBit == 0)
+    if (bufferPool[*hand].refBit == 0)
     {
-      bufferPool[hand].refBit = 1;
-      slot = hand;
+      bufferPool[*hand].refBit = 1;
+      slot = *hand;
       break;
     }
     else
     {
-      bufferPool[hand].refBit = 0;
+      bufferPool[*hand].refBit = 0;
     }
   }
 
