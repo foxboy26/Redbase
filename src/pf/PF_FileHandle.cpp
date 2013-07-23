@@ -1,7 +1,6 @@
 #include "PF_FileHandle.h"
 
 #include <cassert>
-using namespace std;
 
 PF_FileHandle::PF_FileHandle()
 : fd(-1), isOpen(false), fileHdr(-1, -1), bufferPool(NULL)

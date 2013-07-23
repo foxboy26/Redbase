@@ -8,6 +8,20 @@
 #include <unordered_map>
 #include <utility>
 
+std::ostream& operator<< (std::ostream& out, const PF_BufferPool::PF_BufferPage& page)
+{
+  out << "fd: " << page.fd << ", ";
+  out << "pageNum: " << page.pageNum << ", ";
+  out << "isDirty: " << page.isDirty << ", ";
+  out << "pinCount: " << page.pinCount << ", ";
+  out << "refBit: " << page.refBit << ", ";
+  out << "pData: ";
+  for (int i = 0; i < 16; i++)
+    out << page.pData[i];
+  
+  return out;
+}
+
 PF_BufferPool::PF_BufferPage::PF_BufferPage() : isDirty(false), pinCount(0), refBit(0)
 {
   pData = new char[PF_PAGE_SIZE];
@@ -52,6 +66,8 @@ void PF_BufferPool::GetPage(int fd, PageNum pageNum, char*& pData)
   if (res == indexMap.end())
   {
     // page fault
+    std::cout << "page fault" << std::endl;
+
     slot = InternalAllocate(fd, pageNum);
 
     bufferPool[slot].fd = fd;
@@ -66,6 +82,7 @@ void PF_BufferPool::GetPage(int fd, PageNum pageNum, char*& pData)
   }
 
   bufferPool[slot].pinCount++;
+  bufferPool[slot].refBit = 1;
 
   pData = bufferPool[slot].pData;
 }
@@ -196,6 +213,8 @@ void PF_BufferPool::WritePage(PF_BufferPage& page)
 
 void PF_BufferPool::ReadPage(PF_BufferPage& page)
 {
+  std::cout << "readpage from " << page.fd << ", " << page.pageNum << std::endl;
+
   off_t offset = page.pageNum * this->pageSize;
 
   if (lseek(page.fd, offset, SEEK_SET) < 0)
@@ -222,6 +241,7 @@ int PF_BufferPool::InternalAllocate(int fd, PageNum pageNum)
   {
     slot = freeSlots.front();
     freeSlots.pop_front();
+    usedSlots.push_back(slot);
   }
   else
   {
@@ -237,7 +257,6 @@ int PF_BufferPool::InternalAllocate(int fd, PageNum pageNum)
 
   indexMap.insert({std::pair<int, PageNum>(fd, pageNum), slot});
 
-  usedSlots.push_back(slot);
 
   return slot;
 }
@@ -266,4 +285,52 @@ int PF_BufferPool::ChooseNextSlot()
   }
 
   return slot;
+}
+
+std::ostream& operator<< (std::ostream& out, const PF_BufferPool& pool)
+{
+  out << "bufferSize: " << pool.bufferSize << ", ";
+  out << "pageSize: " << pool.pageSize << ", ";
+  out << "hand: " << *pool.hand << ", ";
+
+  out << "freeSlots: ";
+  out << "[";
+  bool isFirst = true;
+  for (auto it = pool.freeSlots.begin(); it != pool.freeSlots.end(); ++it)
+  {
+    if (isFirst)
+    {
+      out << *it;
+      isFirst = false;
+    }
+    else
+    {
+      out << ", " << *it;
+    }
+  }
+  out << "], ";
+
+  out << "usedSlots: ";
+  out << "[";
+  isFirst = true;
+  for (auto it = pool.usedSlots.begin(); it != pool.usedSlots.end(); ++it)
+  {
+    if (isFirst)
+    {
+      out << *it;
+      isFirst = false;
+    }
+    else
+    {
+      out << ", " << *it;
+    }
+  }
+  out << "]" << std::endl;
+
+  for (auto it = pool.usedSlots.begin(); it != pool.usedSlots.end(); ++it)
+  {
+    out << "Page " << *it << " " << pool.bufferPool[*it] << std::endl;
+  }
+
+  return out;
 }

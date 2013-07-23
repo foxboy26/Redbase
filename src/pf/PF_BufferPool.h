@@ -44,6 +44,8 @@ class PF_BufferPool
         short   pinCount;
         short   refBit;
         char*   pData;
+
+        friend std::ostream& operator<< (std::ostream& out, const PF_BufferPage& page); 
     };
 
     int bufferSize;
@@ -60,4 +62,6 @@ class PF_BufferPool
     void ReadPage(PF_BufferPage& page);
     int InternalAllocate(int fd, PageNum pageNum);
     int ChooseNextSlot();
+
+    friend std::ostream& operator<< (std::ostream& out, const PF_BufferPool& pool); 
 };

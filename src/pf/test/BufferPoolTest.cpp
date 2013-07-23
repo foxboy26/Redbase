@@ -16,9 +16,9 @@ int main()
   int fd;
   try
   {
-    PF_BufferPool bufferPool(10);
+    PF_BufferPool bufferPool(2);
 
-    fd = open("test.dat", O_CREAT|O_EXCL|O_WRONLY, 0600);
+    fd = open("test.dat", O_CREAT | O_RDWR, 0600);
     if (fd == -1)
     {
       throw PF_Exception(PF_Exception::UNIX);
@@ -30,11 +30,40 @@ int main()
 
     bufferPool.GetPage(fd, 1, pData); 
 
-    cout << pData[0] << endl;
+    cout << bufferPool << endl;
     
-    //bufferPool.MarkDirty(fd, 1);
-    //bufferPool.UnpinPage(fd, 1);
+    bufferPool.MarkDirty(fd, 1);
 
+    pData[0] = 'd';
+    cout << bufferPool << endl;
+
+    bufferPool.UnpinPage(fd, 1);
+    cout << bufferPool << endl;
+
+    bufferPool.GetPage(fd, 2, pData); 
+
+    cout << bufferPool << endl;
+    
+    bufferPool.MarkDirty(fd, 2);
+
+    pData[0] = 'd';
+    cout << bufferPool << endl;
+
+    bufferPool.UnpinPage(fd, 2);
+    cout << bufferPool << endl;
+
+    bufferPool.GetPage(fd, 3, pData); 
+
+    cout << bufferPool << endl;
+    
+    bufferPool.MarkDirty(fd, 3);
+
+    pData[0] = 'd';
+    cout << bufferPool << endl;
+
+    bufferPool.UnpinPage(fd, 3);
+    cout << bufferPool << endl;
+    
   }
   catch (PF_Exception& e)
   {
