@@ -1,11 +1,13 @@
 #include "PF_Manager.h"
 
-#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 PF_Manager::PF_Manager()
 {
-  bufferPool = new BufferPool(PF_BUFFER_SIZE);
+  bufferPool = new PF_BufferPool(PF_BUFFER_SIZE);
 }
 
 PF_Manager::~PF_Manager()
@@ -13,48 +15,53 @@ PF_Manager::~PF_Manager()
   delete bufferPool;
 }
 
-RC PF_Manager::CreateFile(const char* filename)
+void PF_Manager::CreateFile(const char* filename)
 {
-  RC rc;
   int fd;
 
   fd = open(filename, O_CREAT|O_EXCL|O_WRONLY, 0600);
-  if (fd == -1) return PF_UNIX;
-
-  rc = InitFileHdr(fd);
-  if (rc != OK)
-  {
-    if (close(fd) == -1) return PF_UNIX;
-
-    if (remove(filename) == -1) return PF_UNIX;
-
-    return rc;
+  if (fd == -1) {
+    throw PF_Exception(PF_Exception::RC::UNIX_ERROR);
   }
 
-  if (close(fd) == -1) return PF_UNIX;
+  try {
+    InitFileHdr(fd);
+  } catch (PF_Exception e) {
+    if (close(fd) == -1) {
+      throw PF_Exception(PF_Exception::RC::UNIX_ERROR);
+    }
 
-  return OK;
+    if (remove(filename) == -1) {
+      throw PF_Exception(PF_Exception::RC::UNIX_ERROR);
+    }
+  }
+
+  if (close(fd) == -1) {
+    throw PF_Exception(PF_Exception::RC::UNIX_ERROR);
+  }
 }
 
-RC PF_Manager::DestroyFile(const char* filename);
+void PF_Manager::DestroyFile(const char* filename)
 {
-  if (remove(filename) == -1) return PF_UNIX;
-
-  return OK;
+  if (remove(filename) == -1) {
+    throw PF_Exception(PF_Exception::RC::UNIX_ERROR);
+  }
 }
 
-RC PF_Manager::OpenFile(const char* filename, PF_FileHandle& fileHandle);
+void PF_FileHandle PF_Manager::OpenFile(const char* filename)
 {
-  int RC;
-  
-  if (fileHandle.isOpen) return PF_FILEOPEN;
+  assert(!fileHandle.isOpen);
 
-  fileHandle.fd = open(filename, O_CREAT|O_EXCL|O_WRONLY, 0600);
-  if (fileHandle.fd == -1) return PF_UNIX;
+  PF_FileHandle fileHandle;
+  int fd = open(filename, O_CREAT|O_EXCL|O_WRONLY, 0600);
+  if (fd == -1) {
+    throw PF_Exception(PF_Exception::UNIX_ERROR);
+  }
 
-  rc = ReadFileHdr(fileHandle);
-  if (rc != OK)
-  {
+  try {
+    ReadFileHdr(fileHandle);
+  } catch (PF_Exception e) {
+
     if (close(fd) == -1) return PF_UNIX;
 
     return rc;
@@ -62,53 +69,49 @@ RC PF_Manager::OpenFile(const char* filename, PF_FileHandle& fileHandle);
 
   fileHandle.bufferPool = this->bufferPool;
   fileHandle.isOpen = true;
-
-  return OK;
 }
 
-RC PF_Manager::CloseFile(PF_FileHanlde& fileHandle);
+void PF_Manager::CloseFile(PF_FileHandle& fileHandle)
 {
-  RC rc;
+  assert(fileHandle.isOpen);
 
-  if (!fileHandle.isOpen) return PF_CLOSEDFILE;
+  if (fileHandle.isHeadModfied) {
+    fileHandle.
+  }
 
   if (close(fileHandle.fd) == -1) return PF_UNIX;
-  
+
   fileHandle.bufferPool = NULL;
   fileHandle.isOpen = false;
-
-  return OK;
 }
 
-RC PF_Manager::AllocateBlock(char*& buffer);
+void PF_Manager::AllocateBlock(char*& buffer)
 {
   return this->bufferPool->AllocateBlock(buffer);
 }
 
-RC PF_Manager::DisposeBlock(char* buffer);
+void PF_Manager::DisposeBlock(char* buffer)
 {
   return this->bufferPool->DisposeBlock(buffer);
 }
 
-RC PF_Manager::InitFileHdr(int fd)
+void PF_Manager::InitFileHdr(int fd)
 {
-  PF_FileHdr fileHdr;
+  PF_FileHeader fileHdr;
   fileHdr.numPages = 0;
   fileHdr.firstFree = 1;
 
   ssize_t writtenBytes = write(fd, &fileHdr, sizeof(fileHdr));
-  
+
   if (writtenBytes < 0) return PF_UNIX;
 
   if (writtenBytes < sizeof(fileHdr)) return PF_HDRWRITE;
-
-  return OK;
 }
 
-RC PF_Manager::ReadFileHdr(PF_FileHandle& fileHandle)
+void PF_Manager::ReadFileHdr(PF_FileHandle& fileHandle)
 {
   ssize_t readBytes = read(fileHandle.fd, &fileHandle.fileHdr, sizeof(fileHandle.fileHdr));
-  
+
   if (readBytes < 0) return PF_UNIX;
 
   if (readBytes < sizeof(fileHandle.fileHdr)) return PF_HDRREAD;

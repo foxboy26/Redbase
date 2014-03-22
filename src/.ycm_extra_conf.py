@@ -57,15 +57,17 @@ flags = [
 '-x',
 'c++',
 '-stdlib=libc++',
+# Do not search for header files in the standard directories for C++, 
+# but search the other standard directories.
 '-nostdinc++',
 '-I',
 '/Users/zhihengli/libs/libcxx/include',
 '-I',
 '.',
 '-I',
-'./exception',
-'-I',
-'./log',
+'../include/'
+'-isystem',
+'/usr/local/include/'
 ]
 
 # Set this to the absolute path to the folder (NOT the file!) containing the

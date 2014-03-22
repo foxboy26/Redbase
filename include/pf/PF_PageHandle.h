@@ -1,4 +1,5 @@
-#pragma once
+#ifndef PF_PF_PAGEHANDLE_H
+#define PF_PF_PAGEHANDLE_H
 
 #include "PF.h"
 
@@ -18,3 +19,5 @@ class PF_PageHandle
 
   friend class PF_FileHandle;
 };
+
+#endif // PF_PF_PAGEHANDLE_H

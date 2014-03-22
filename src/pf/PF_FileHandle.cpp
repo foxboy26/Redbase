@@ -3,8 +3,9 @@
 #include <cassert>
 
 PF_FileHandle::PF_FileHandle()
-: fd(-1), isOpen(false), fileHdr(-1, -1), bufferPool(NULL)
+: fd(-1), isOpen(false), isHeadModified(false), bufferPool(nullptr)
 {
+  // Nothing
 }
 
 PF_FileHandle::~PF_FileHandle()
@@ -16,7 +17,7 @@ PF_FileHandle::PF_FileHandle(const PF_FileHandle& fileHandle)
 {
   this->fd = fileHandle.fd;
   this->isOpen = false;
-  this->fileHdr = fileHandle.fileHdr;
+  this->fileHeader = fileHandle.fileHeader;
   this->bufferPool = fileHandle.bufferPool;
 }
 
@@ -26,97 +27,161 @@ PF_FileHandle& PF_FileHandle::operator= (const PF_FileHandle& fileHandle)
   {
     this->fd = fileHandle.fd;
     this->isOpen = false;
-    this->fileHdr = fileHandle.fileHdr;
+    this->fileHeader = fileHandle.fileHeader;
     this->bufferPool = fileHandle.bufferPool;
   }
 
   return *this;
 }
 
-RC PF_FileHandle::GetFirstPage(PF_PageHandle& pageHandle) const
+PF_PageHandle PF_FileHandle::GetFirstPage() const
 {
-  return GetNextPage(-1, pageHandle);
+  return GetNextPage(-1);
 }
 
-RC PF_FileHandle::GetLastPage(PF_PageHandle& pageHandle) const
+PF_PageHandle PF_FileHandle::GetNextPage(PageNum current) const
 {
-  return GetPrevPage(fileHdr.numPages, pageHandle);
-}
+  assert(isOpen);
+  assert(isValidPageNum(current));
 
-RC PF_FileHandle::GetNextPage(PageNum current, PF_PageHandle& pageHandle) const
-{
-  if (!isOpen)
-    return PF_CLOSEDFILE;
+  PF_PageHandle pageHandle;
 
-  int rc;
-  for (current++, current < fileHdr.numPages; current++)
-  {
-    rc = GetThisPage(current, pageHandle);
+  for (current--; current >= 0; current--) {
+    char* pBufData = bufferPool->GetPage(this->fd, current);
 
-    if (rc == OK)
-      return OK;
-    
-    // error
-    if (rc != PF_INVALIDPAGE)
-      return rc;
+    PF_PageHeader* pageHeader = reinterpret_cast<PF_PageHeader*> (pBufData);
+
+    if (pageHeader->nextFree == USED_PAGE) {
+      pageHandle.pageNum = current;
+      pageHandle.pData = pBufData + PF_PAGE_HEADER_SIZE;
+      return pageHandle;
+    }
   }
 
-  return PF_EOF;
+  throw PF_Exception(PF_Exception::RC::END_OF_FILE);
 }
 
-RC PF_FileHandle::GetPrevPage(PageNum current, PF_PageHandle& pageHandle) const
+PF_PageHandle PF_FileHandle::GetLastPage() const
 {
-  if (!isOpen)
-    return PF_CLOSEDFILE;
+  throw PF_Exception(PF_Exception::RC::NOT_IMPLEMENTED);
+}
 
-  int rc;
-  for (current--, current >= 0; current--)
-  {
-    rc = GetThisPage(current, pageHandle);
+PF_PageHandle PF_FileHandle::GetPrevPage(PageNum current) const
+{
+  throw PF_Exception(PF_Exception::RC::NOT_IMPLEMENTED);
+}
 
-    if (rc == OK)
-      return OK;
-    
-    // error
-    if (rc != PF_INVALIDPAGE)
-      return rc;
+PF_PageHandle PF_FileHandle::GetPage(PageNum pageNum) const
+{
+  assert(isOpen);
+  assert(isValidPageNum(pageNum));
+
+  char* pBufData = bufferPool->GetPage(this->fd, pageNum);
+
+  PF_PageHeader* pageHeader = reinterpret_cast<PF_PageHeader*> (pBufData);
+
+  if (pageHeader->nextFree != USED_PAGE) {
+
+    bufferPool->UnpinPage(this->fd, pageNum);
+    throw PF_Exception(PF_Exception::RC::INVALID_PAGE);
   }
 
-  return PF_EOF;
+  PF_PageHandle pageHandle;
+  pageHandle.pageNum = pageNum;
+  pageHandle.pData = pBufData + PF_PAGE_HEADER_SIZE;
+
+  return pageHandle;
 }
 
-void PF_FileHandle::GetThisPage(PageNum pageNum, PF_PageHandle& pageHandle) const
+PF_PageHandle PF_FileHandle::AllocatePage()
 {
   assert(isOpen);
 
-  bufferPool->GetPage(fd, pageNum, pageHandle.pData);
+  char* pBufData;
+  int pageNum;
+  PF_PageHeader* pageHeader;
+
+  if (fileHeader.firstFree != PF_LAST_FREE_PAGE ) {
+    pageNum = fileHeader.firstFree;
+
+    pBufData = bufferPool->GetPage(this->fd, pageNum);
+
+    pageHeader = reinterpret_cast<PF_PageHeader*> (pBufData);
+    pageHeader->nextFree = USED_PAGE;
+
+    fileHeader.firstFree = pageHeader->nextFree;
+
+  } else {
+    pageNum = fileHeader.numOfPages;
+
+    pBufData = bufferPool->AllocatePage(this->fd, pageNum);
+
+    pageHeader = reinterpret_cast<PF_PageHeader*> (pBufData);
+    pageHeader->nextFree = USED_PAGE;
+
+    fileHeader.numOfPages++;
+  }
+
+  this->isHeadModified = true;
+
+  bufferPool->MarkDirty(this->fd, pageNum);
+
+  PF_PageHandle pageHandle;
+  pageHandle.pageNum = pageNum;
+  pageHandle.pData = pBufData + PF_PAGE_HEADER_SIZE;
+
+  return pageHandle;
 }
 
-RC PF_FileHandle::AllocatePage(PF_PageHandle& pageHandle)
-{
-}
-
-RC PF_FileHandle::DisposePage(PageNum pageNum)
-{
-}
-
-RC PF_FileHandle::MarkDirty(PageNum pageNum) const
+void PF_FileHandle::DisposePage(PageNum pageNum)
 {
   assert(isOpen);
+  assert(isValidPageNum(pageNum));
 
-  return bufferPool->MarkDirty(fd, pageNum);
+  char* pBufData = this->bufferPool->GetPage(this->fd, pageNum);
+
+  PF_PageHeader* pageHeader = reinterpret_cast<PF_PageHeader*> (pBufData);
+
+  if (pageHeader->nextFree != USED_PAGE) {
+    bufferPool->UnpinPage(this->fd, pageNum);
+    throw PF_Exception(PF_Exception::RC::PAGE_FREE);
+  }
+
+  pageHeader->nextFree = this->fileHeader.firstFree;
+
+  this->fileHeader.firstFree = pageNum;
+
+  bufferPool->UnpinPage(this->fd, pageNum);
+
+  bufferPool->MarkDirty(this->fd, pageNum);
+
+  this->isHeadModified = true;
 }
 
-RC PF_FileHandle::UnpinPage(PageNum pageNum) const
+void PF_FileHandle::MarkDirty(PageNum pageNum) const
 {
   assert(isOpen);
+  assert(isValidPageNum(pageNum));
 
-  return bufferPool->UnpinPage(fd, pageNum);
+  bufferPool->MarkDirty(fd, pageNum);
 }
 
-RC PF_FileHandle::ForcePages(PageNum pageNum = ALL_PAGES) const
+void PF_FileHandle::UnpinPage(PageNum pageNum) const
 {
   assert(isOpen);
-  
-  return bufferPool->ForcePages(pageNum);
+  assert(isValidPageNum(pageNum));
+
+  bufferPool->UnpinPage(fd, pageNum);
+}
+
+void PF_FileHandle::ForcePages(PageNum pageNum) const
+{
+  assert(isOpen);
+  assert(isValidPageNum(pageNum));
+
+  bufferPool->ForcePages(pageNum);
+}
+
+inline bool PF_FileHandle::isValidPageNum(const PageNum& pageNum) const {
+  return (pageNum >= 0 && pageNum <= fileHeader.numOfPages);
 }

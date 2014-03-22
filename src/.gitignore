@@ -3,5 +3,6 @@
 *.out
 *.dSYM
 *.pyc
+.DS_Store
 dep/
 obj/

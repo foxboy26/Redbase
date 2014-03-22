@@ -31,7 +31,7 @@ PF_PageHandle& PF_PageHandle::operator=(const PF_PageHandle& pageHandle)
 char* PF_PageHandle::GetData() const
 {
   if (this->pData == nullptr)
-    throw PF_Exception(PF_Exception::PAGEUNPINNED);
+    throw PF_Exception(PF_Exception::PAGE_UNPINNED);
 
   return this->pData;
 }
@@ -39,7 +39,7 @@ char* PF_PageHandle::GetData() const
 PageNum PF_PageHandle::GetPageNum() const
 {
   if (this->pData == nullptr)
-    throw PF_Exception(PF_Exception::PAGEUNPINNED);
+    throw PF_Exception(PF_Exception::PAGE_UNPINNED);
 
   return this->pageNum;
 }

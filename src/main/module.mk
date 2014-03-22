@@ -1,1 +1,0 @@
-SRC += main/RedBase.cpp
