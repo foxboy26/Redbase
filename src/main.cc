@@ -1,12 +1,11 @@
 #include <iostream>
 #include <fstream>
-using namespace std;
 
 int main(int argc, char* argv[])
 {
-  cout << "Welcome to Redbase" << endl;
+  std::cout << "Welcome to Redbase" << std::endl;
 
-  cout << "Bye!" << endl;
+  std::cout << "Bye!" << std::endl;
 
   return 0;
 }
