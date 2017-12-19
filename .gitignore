@@ -1,7 +1,8 @@
 */a.out
-build/
-bazel-bin/
-bazel-genfiles/
-bazel-out/
-bazel-Redbase/
-bazel-testlogs/
+
+# Ignore Bazel build output
+bazel-bin
+bazel-genfiles
+bazel-out
+bazel-Redbase
+bazel-testlogs
