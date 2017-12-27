@@ -10,3 +10,5 @@ bazel-out
 bazel-Redbase
 bazel-redbase
 bazel-testlogs
+
+.ycm_extra_conf.py

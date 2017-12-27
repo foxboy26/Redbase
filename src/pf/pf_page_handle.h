@@ -7,19 +7,19 @@ struct PF_PageHeader {
 };
 
 class PF_PageHandle {
- public:
-  PF_PageHandle  (); // Default constructor
-  ~PF_PageHandle (); // Destructor
+public:
+  PF_PageHandle();  // Default constructor
+  ~PF_PageHandle(); // Destructor
 
   // non-copyable
-  PF_PageHandle(const PF_PageHandle&) =delete;  
-  PF_PageHandle& operator=(const PF_PageHandle&) =delete; 
+  PF_PageHandle(const PF_PageHandle &) = delete;
+  PF_PageHandle &operator=(const PF_PageHandle &) = delete;
 
   // GetPageNum returns the page number.
   PageNum GetPageNum() const;
   RC GetData(char *&pData) const;
 
- private:
+private:
   PageNum pageNum_;
-  char* pData_;
+  char *pData_;
 };
