@@ -5,5 +5,5 @@
 
 local_repository(
     name = "com_google_googletest",
-    path = "/home/zhiheng/googletest",
+    path = "/home/zhiheng/libs/googletest",
 )

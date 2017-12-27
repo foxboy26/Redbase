@@ -1,8 +1,12 @@
 */a.out
 
+# Ignore vim swp files.
+*.swp
+
 # Ignore Bazel build output
 bazel-bin
 bazel-genfiles
 bazel-out
 bazel-Redbase
+bazel-redbase
 bazel-testlogs
