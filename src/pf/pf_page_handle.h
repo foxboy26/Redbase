@@ -1,6 +1,5 @@
+#include "src/pf/pf.h"
 #include "src/rc.h"
-
-typedef int PageNum;
 
 struct PF_PageHeader {
   PageNum nextFree;

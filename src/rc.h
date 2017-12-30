@@ -1,3 +1,6 @@
+#ifndef RC_H
+#define RC_H
+
 enum RC {
   OK = 0, // success
 
@@ -23,7 +26,11 @@ enum RC {
   PF_INVALIDNAME,   // invalid file name
   PF_UNIX,          // Unix error
 
+  NOT_IMPLEMENTED, // function not implemented.
+
   RC_EOF,
 };
 
 void PF_PrintError(RC rc);
+
+#endif // RC_H

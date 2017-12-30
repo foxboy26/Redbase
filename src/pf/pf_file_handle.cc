@@ -1,7 +1,14 @@
 #include "pf_file_handle.h"
 
-const int PF_PAGE_SIZE = 4092; // 4Kb
-const int PF_BUFFER_SIZE = 40;
+#include <cassert>
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include "glog/logging.h"
+#include "src/pf/pf_internal.h"
 
 struct PF_BufferPage {
   PageNum pageNum;
@@ -10,14 +17,89 @@ struct PF_BufferPage {
 };
 
 PF_FileHandle::PF_FileHandle()
-    : fd(-1), isOpen(false), isHeadModified(false), bufferPool(nullptr) {
+    : bufferPool_(nullptr), header_(), fd_(-1), isOpen_(false),
+      isHeadModfied_(false) {
   // Nothing
 }
 
 PF_FileHandle::~PF_FileHandle() {
-  // Nothing
+  if (IsOpen()) {
+    RC rc = Close();
+    if (rc != RC::OK) {
+      LOG(ERROR) << "Failed to close file; fd=" << fd_ << " err: " << rc;
+    }
+  }
 }
 
+RC PF_FileHandle::ReadFileHeader() {
+  assert(IsOpen());
+  ssize_t readBytes = read(fd_, &header_, sizeof(header_));
+
+  if (readBytes < 0) {
+    return RC::PF_UNIX;
+  }
+
+  if (readBytes < static_cast<ssize_t>(sizeof(header_))) {
+    return RC::PF_HDRREAD;
+  }
+
+  return OK;
+}
+
+RC PF_FileHandle::WriteFileHeader() {
+  assert(IsOpen());
+  ssize_t writeBytes = write(fd_, &header_, sizeof(header_));
+
+  if (writeBytes < 0) {
+    return RC::PF_UNIX;
+  }
+
+  if (writeBytes < static_cast<ssize_t>(sizeof(header_))) {
+    return RC::PF_HDRWRITE;
+  }
+
+  return OK;
+}
+
+RC PF_FileHandle::Open(const char *filename) {
+  // make sure the file is not opened.
+  assert(!IsOpen());
+
+  int fd = open(filename, O_RDWR, 0600);
+  LOG(INFO) << "fd:  " << fd << "\n";
+  if (fd < 0) {
+    return RC::PF_UNIX;
+  }
+
+  // mark file as opened.
+  fd_ = fd;
+  isOpen_ = true;
+
+  return ReadFileHeader();
+}
+
+RC PF_FileHandle::Close() {
+  assert(IsOpen());
+
+  if (isHeadModfied_) {
+    RC rc = WriteFileHeader();
+    if (rc != RC::OK) {
+      return rc;
+    }
+  }
+
+  if (close(fd_) == -1) {
+    return RC::PF_UNIX;
+  }
+
+  // Update internal states
+  isOpen_ = false;
+  fd_ = -1;
+
+  return RC::OK;
+}
+
+/*
 PF_PageHandle PF_FileHandle::GetFirstPage() const { return GetNextPage(-1); }
 
 PF_PageHandle PF_FileHandle::GetNextPage(PageNum current) const {
@@ -156,4 +238,4 @@ void PF_FileHandle::ForcePages(PageNum pageNum) const {
 
 inline bool PF_FileHandle::isValidPageNum(const PageNum &pageNum) const {
   return (pageNum >= 0 && pageNum <= fileHeader.numOfPages);
-}
+}*/

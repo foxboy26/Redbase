@@ -27,6 +27,8 @@ const char *const RC_Name[] = {
     "PF_HASHPAGEEXIST", // page already exists in hash table
     "PF_INVALIDNAME",   // invalid file name
     "PF_UNIX",          // Unix error
+
+    "NOT_IMPLEMENTED", // function not implemented
 };
 
 void PrintError(const std::string &prefix, RC rc) {

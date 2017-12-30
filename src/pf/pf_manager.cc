@@ -1,113 +1,59 @@
 #include "pf_manager.h"
 
+#include <memory>
+
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-PF_Manager::PF_Manager() { bufferPool = new PF_BufferPool(PF_BUFFER_SIZE); }
+#include "glog/logging.h"
+#include "src/pf/pf_file_handle.h"
 
-PF_Manager::~PF_Manager() { delete bufferPool; }
+#define PF_BUFFER_SIZE 40
 
-void PF_Manager::CreateFile(const char *filename) {
-  int fd;
+PF_Manager::PF_Manager() : bufferPool_(new PF_BufferPool(PF_BUFFER_SIZE)) {}
 
-  fd = open(filename, O_CREAT | O_EXCL | O_WRONLY, 0600);
+RC PF_Manager::CreateFile(const char *filename) {
+  int fd = open(filename, O_CREAT | O_EXCL | O_WRONLY, 0600);
   if (fd == -1) {
-    throw PF_Exception(PF_Exception::RC::UNIX_ERROR);
+    LOG(ERROR) << "Open file failed";
+    return RC::PF_UNIX;
   }
 
-  try {
-    InitFileHdr(fd);
-  } catch (PF_Exception e) {
-    if (close(fd) == -1) {
-      throw PF_Exception(PF_Exception::RC::UNIX_ERROR);
-    }
+  PF_FileHeader header;
 
-    if (remove(filename) == -1) {
-      throw PF_Exception(PF_Exception::RC::UNIX_ERROR);
-    }
+  ssize_t writtenBytes = write(fd, &header, sizeof(header));
+
+  if (writtenBytes < 0) {
+    LOG(ERROR) << "Write header to file failed";
+    return RC::PF_UNIX;
+  }
+
+  if (writtenBytes < static_cast<ssize_t>(sizeof(header))) {
+    LOG(ERROR) << "Write incompleted header to the file: " << filename;
+    return RC::PF_HDRWRITE;
   }
 
   if (close(fd) == -1) {
-    throw PF_Exception(PF_Exception::RC::UNIX_ERROR);
+    LOG(ERROR) << "Failed to close file: " << filename;
+    return RC::PF_UNIX;
   }
+
+  return RC::OK;
 }
 
-void PF_Manager::DestroyFile(const char *filename) {
+RC PF_Manager::DestroyFile(const char *filename) {
   if (remove(filename) == -1) {
-    throw PF_Exception(PF_Exception::RC::UNIX_ERROR);
+    return RC::PF_UNIX;
   }
+  return RC::OK;
 }
 
-void PF_FileHandle PF_Manager::OpenFile(const char *filename) {
-  assert(!fileHandle.isOpen);
-
-  PF_FileHandle fileHandle;
-  int fd = open(filename, O_CREAT | O_EXCL | O_WRONLY, 0600);
-  if (fd == -1) {
-    throw PF_Exception(PF_Exception::UNIX_ERROR);
-  }
-
-  try {
-    ReadFileHdr(fileHandle);
-  } catch (PF_Exception e) {
-
-    if (close(fd) == -1)
-      return PF_UNIX;
-
-    return rc;
-  }
-
-  fileHandle.bufferPool = this->bufferPool;
-  fileHandle.isOpen = true;
+RC PF_Manager::AllocateBlock(char *&buffer) {
+  return bufferPool_->AllocateBlock(buffer);
 }
 
-void PF_Manager::CloseFile(PF_FileHandle &fileHandle) {
-  assert(fileHandle.isOpen);
-
-  if (fileHandle.isHeadModfied) {
-    fileHandle.
-  }
-
-  if (close(fileHandle.fd) == -1)
-    return PF_UNIX;
-
-  fileHandle.bufferPool = NULL;
-  fileHandle.isOpen = false;
-}
-
-void PF_Manager::AllocateBlock(char *&buffer) {
-  return this->bufferPool->AllocateBlock(buffer);
-}
-
-void PF_Manager::DisposeBlock(char *buffer) {
-  return this->bufferPool->DisposeBlock(buffer);
-}
-
-void PF_Manager::InitFileHdr(int fd) {
-  PF_FileHeader fileHdr;
-  fileHdr.numPages = 0;
-  fileHdr.firstFree = 1;
-
-  ssize_t writtenBytes = write(fd, &fileHdr, sizeof(fileHdr));
-
-  if (writtenBytes < 0)
-    return PF_UNIX;
-
-  if (writtenBytes < sizeof(fileHdr))
-    return PF_HDRWRITE;
-}
-
-void PF_Manager::ReadFileHdr(PF_FileHandle &fileHandle) {
-  ssize_t readBytes =
-      read(fileHandle.fd, &fileHandle.fileHdr, sizeof(fileHandle.fileHdr));
-
-  if (readBytes < 0)
-    return PF_UNIX;
-
-  if (readBytes < sizeof(fileHandle.fileHdr))
-    return PF_HDRREAD;
-
-  return OK;
+RC PF_Manager::DisposeBlock(char *buffer) {
+  return bufferPool_->DisposeBlock(buffer);
 }

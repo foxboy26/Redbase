@@ -7,6 +7,10 @@ cc_binary(
     ],
     deps = [
         ":rc",
+        "//src/pf:pf_file_handle",
+        "//src/pf:pf_manager",
+        "@com_github_gflags_gflags//:gflags",
+        "@com_google_glog//:glog",
     ],
 )
 
