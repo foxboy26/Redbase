@@ -67,6 +67,19 @@ cc_library(
         "pf_internal.h",
     ],
     deps = [
+        ":pf_page_handle",
         "//src:rc",
+        "@com_google_glog//:glog",
+    ],
+)
+
+cc_test(
+    name = "pf_buffer_pool_test",
+    srcs = [
+        "pf_buffer_pool_test.cc",
+    ],
+    deps = [
+        ":pf_buffer_pool",
+        "@com_google_googletest//:gtest_main",
     ],
 )
