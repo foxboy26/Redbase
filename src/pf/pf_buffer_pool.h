@@ -7,21 +7,13 @@
 #include <unordered_map>
 #include <utility>
 
+#include "src/pf/lru_cache.h"
 #include "src/pf/pf.h"
 #include "src/pf/pf_internal.h"
 #include "src/pf/pf_page_handle.h"
 #include "src/rc.h"
 
 using PF_BufferPageKey = std::pair<int, PageNum>;
-
-namespace std {
-template <> struct hash<PF_BufferPageKey> {
-public:
-  size_t operator()(const PF_BufferPageKey &key) const {
-    return static_cast<size_t>(key.first ^ key.second);
-  }
-};
-}; // namespace std
 
 class PF_BufferPage {
 public:
@@ -59,23 +51,14 @@ private:
   char *pData_;  // content of the page.
 };
 
-class LRUCache {
+namespace std {
+template <> struct hash<PF_BufferPageKey> {
 public:
-  explicit LRUCache(int size);
-  ~LRUCache() = default;
-
-  RC Put(const PF_BufferPageKey &key, std::unique_ptr<PF_BufferPage> page);
-  PF_BufferPage *Get(const PF_BufferPageKey &key);
-
-  bool Empty() { return curSize_ == 0; }
-  int Capacity() { return bufferSize_; }
-
-private:
-  int bufferSize_;
-  int curSize_;
-  std::queue<PF_BufferPageKey> lru_queue_;
-  std::unordered_map<PF_BufferPageKey, std::unique_ptr<PF_BufferPage>> pool_;
+  size_t operator()(const PF_BufferPageKey &key) const {
+    return static_cast<size_t>(key.first ^ key.second);
+  }
 };
+}; // namespace std
 
 class PF_BufferPool {
 public:
@@ -95,8 +78,7 @@ public:
 private:
   int bufferSize_;
   int curSize_;
-  std::queue<PF_BufferPageKey> lru_queue_;
-  std::unordered_map<PF_BufferPageKey, std::unique_ptr<PF_BufferPage>> pool_;
+  LRUCache<PF_BufferPageKey, PF_BufferPage> pool_;
   friend std::ostream &operator<<(std::ostream &out, const PF_BufferPool &pool);
 };
 

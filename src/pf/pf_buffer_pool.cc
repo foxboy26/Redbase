@@ -65,146 +65,100 @@ RC PF_BufferPage::Read() {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// LRUCache
-//
-LRUCache::LRUCache(int size) : bufferSize_(size), curSize_(0) {}
-RC LRUCache::Put(const PF_BufferPageKey &key,
-                 std::unique_ptr<PF_BufferPage> page) {
-  // when buffer is full.
-  if (curSize_ == bufferSize_) {
-    PF_BufferPageKey victim = lru_queue_.front();
-    auto got = pool_.find(victim);
-    if (got == pool_.end()) {
-      return RC::PF_HASHNOTFOUND;
-    }
-
-    // Remove from the pool.
-    pool_.erase(got->first);
-    lru_queue_.pop();
-  }
-
-  // Insert page.
-  auto res = pool_.insert(std::make_pair(key, std::move(page)));
-  if (!res.second) {
-    LOG(ERROR) << "failed to insert page: fd=" << key.first
-               << ",pageNum=" << key.second;
-    return RC::PF_HASHPAGEEXIST;
-  }
-
-  lru_queue_.push(key);
-
-  return RC::OK;
-}
-
-PF_BufferPage *LRUCache::Get(const PF_BufferPageKey &key) {
-  auto res = pool_.find(key);
-  if (res == pool_.end()) {
-    return nullptr;
-  }
-  return res->second.get();
-}
-
-///////////////////////////////////////////////////////////////////////////////
 // PF_BufferPool
+
+namespace {
+bool EvictFunction(const PF_BufferPageKey &key, PF_BufferPage *page) {
+  LOG(INFO) << "Evicting: " << key.first << " " << key.second;
+  if (page->IsPinned()) {
+    // return RC::PF_PAGEPINNED;
+    return false;
+  }
+
+  if (page->IsDirty()) {
+    LOG(INFO) << "PAGE is dirty need to write back to disk.";
+    RC rc = page->WriteBack();
+    if (rc != RC::OK) {
+      return false;
+      // return rc;
+    }
+  }
+
+  return true;
+}
+} // namespace
+
 PF_BufferPool::PF_BufferPool(int bufferSize)
-    : bufferSize_(bufferSize), curSize_(0) {}
+    : bufferSize_(bufferSize), curSize_(0), pool_(bufferSize) {
+  pool_.SetEvictFunction(EvictFunction);
+}
 
 RC PF_BufferPool::InsertPage(int fd, PageNum pageNum,
                              std::unique_ptr<PF_BufferPage> page) {
-  // when buffer is full.
-  if (curSize_ == bufferSize_) {
-    PF_BufferPageKey victim = lru_queue_.front();
-    auto got = pool_.find(victim);
-    if (got == pool_.end()) {
-      return RC::PF_HASHNOTFOUND;
-    }
-
-    if (got->second->IsPinned()) {
-      return RC::PF_PAGEPINNED;
-    }
-
-    if (got->second->IsDirty()) {
-      LOG(INFO) << "PAGE is dirty need to write back to disk.";
-      RC rc = got->second->WriteBack();
-      if (rc != RC::OK) {
-        return rc;
-      }
-    }
-
-    // Remove from the pool.
-    pool_.erase(got->first);
-    lru_queue_.pop();
-  }
-
-  // Insert page.
   auto key = std::pair<int, PageNum>(fd, pageNum);
-  auto res = pool_.insert(std::make_pair(key, std::move(page)));
-  if (!res.second) {
+  if (!pool_.Put(key, std::move(page))) {
     LOG(ERROR) << "failed to insert page: fd=" << key.first
                << ",pageNum=" << key.second;
     return RC::PF_HASHPAGEEXIST;
   }
-
-  lru_queue_.push(key);
 
   return RC::OK;
 }
 
 RC PF_BufferPool::GetPage(int fd, PageNum pageNum, PF_BufferPage *&page) {
-  auto res = pool_.find(std::pair<int, PageNum>(fd, pageNum));
-  // page fault.
-  if (res == pool_.end()) {
-    std::unique_ptr<PF_BufferPage> newPage(new PF_BufferPage(fd, pageNum));
-    RC rc = newPage->Read();
-    if (rc != RC::OK) {
-      LOG(ERROR) << "Failed to read new page from file";
-      return rc;
-    }
-    page = newPage.get();
-
-    return InsertPage(fd, pageNum, std::move(newPage));
+  PF_BufferPage *res = pool_.Get(std::pair<int, PageNum>(fd, pageNum));
+  if (res != nullptr) {
+    page = res;
+    return RC::OK;
   }
 
-  page = res->second.get();
+  // Page fault.
+  std::unique_ptr<PF_BufferPage> newPage(new PF_BufferPage(fd, pageNum));
+  RC rc = newPage->Read();
+  if (rc != RC::OK) {
+    LOG(ERROR) << "Failed to read new page from file";
+    return rc;
+  }
+  page = newPage.get();
 
-  return RC::OK;
+  return InsertPage(fd, pageNum, std::move(newPage));
 }
 
 RC PF_BufferPool::MarkDirty(int fd, PageNum pageNum) {
-  auto got = pool_.find(std::pair<int, PageNum>(fd, pageNum));
-  if (got == pool_.end()) {
+  auto got = pool_.Get(std::pair<int, PageNum>(fd, pageNum));
+  if (got == nullptr) {
     LOG(ERROR) << "Page not found in buffer";
     return RC::PF_PAGENOTINBUF;
   }
 
-  got->second->MarkDirty();
+  got->MarkDirty();
   return RC::OK;
 }
 
 RC PF_BufferPool::UnpinPage(int fd, PageNum pageNum) {
-  auto got = pool_.find(std::pair<int, PageNum>(fd, pageNum));
-  if (got == pool_.end()) {
+  auto got = pool_.Get(std::pair<int, PageNum>(fd, pageNum));
+  if (got == nullptr) {
     LOG(ERROR) << "Page not found in buffer";
     return RC::PF_PAGENOTINBUF;
   }
 
-  got->second->Unpin();
+  got->Unpin();
   return RC::OK;
 }
 
 RC PF_BufferPool::ForcePage(int fd, PageNum pageNum) {
-  auto res = pool_.find(std::pair<int, PageNum>(fd, pageNum));
-  if (res == pool_.end()) {
+  auto got = pool_.Get(std::pair<int, PageNum>(fd, pageNum));
+  if (got == nullptr) {
     LOG(ERROR) << "Page not found in buffer";
     return RC::PF_PAGENOTINBUF;
   }
 
-  return res->second->WriteBack();
+  return got->WriteBack();
 }
 
 RC PF_BufferPool::ForceAllPages(int fd) {
-  for (const auto &page : pool_) {
-    const auto key = page.first;
+  for (auto it = pool_.GetIterator(); it.HasNext(); it.Next()) {
+    const auto &key = it.Key();
     if (key.first == fd) {
       RC rc = PF_BufferPool::ForcePage(key.first, key.second);
       if (rc != RC::OK) {

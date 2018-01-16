@@ -11,7 +11,8 @@ struct PF_FileHeader {
   PageNum firstFree;
   int numPages;
 
-  PF_FileHeader() : firstPage(-1), lastPage(-1), firstFree(0), numPages(0) {}
+  PF_FileHeader()
+      : firstPage(-1), lastPage(-1), firstFree(LAST_FREE), numPages(0) {}
 };
 
 class PF_FileHandle {
@@ -45,6 +46,7 @@ public:
 private:
   RC ReadFileHeader();
   RC WriteFileHeader();
+  RC AllocateNewPage(PageNum pageNum);
   bool IsValidPageNum(PageNum pageNum) const {
     return (pageNum >= 0 && pageNum <= header_.numPages);
   }

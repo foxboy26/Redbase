@@ -67,6 +67,7 @@ cc_library(
         "pf_internal.h",
     ],
     deps = [
+        ":lru_cache",
         ":pf_page_handle",
         "//src:rc",
         "@com_google_glog//:glog",
@@ -81,5 +82,18 @@ cc_test(
     deps = [
         ":pf_buffer_pool",
         "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "lru_cache",
+    srcs = [
+    ],
+    hdrs = [
+        "lru_cache.cc",
+        "lru_cache.h",
+    ],
+    deps = [
+        "@com_google_glog//:glog",
     ],
 )

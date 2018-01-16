@@ -149,8 +149,12 @@ RC PF_FileHandle::GetThisPage(PageNum pageNum,
     return rc;
   }
 
+  // TODO(zhiheng) check header!
+
   *pageHandle =
       PF_PageHandle(pageNum, bufferPage->Data() + PF_PAGE_HEADER_SIZE);
+
+  bufferPage->Pin();
 
   return RC::OK;
 }
@@ -159,15 +163,14 @@ RC PF_FileHandle::AllocatePage(PF_PageHandle *pageHandle) {
   assert(IsOpen());
 
   RC rc;
+  // allocate a new page.
   if (header_.firstFree == LAST_FREE) {
     PageNum pageNum = header_.numPages;
-    std::unique_ptr<PF_BufferPage> bufferPage(
-        new PF_BufferPage(fd_, header_.numPages));
-    bufferPage->Pin();
-    bufferPage->MarkDirty();
-    bufferPage->WriteBack();
-    *pageHandle =
-        PF_PageHandle(pageNum, bufferPage->Data() + PF_PAGE_HEADER_SIZE);
+    rc = AllocateNewPage(pageNum);
+    if (rc != RC::OK) {
+      return rc;
+    }
+    return GetThisPage(pageNum, pageHandle);
   } else {
     PF_BufferPage *bufferPage;
     rc = bufferPool_->GetPage(fd_, header_.firstFree, bufferPage);
@@ -183,12 +186,31 @@ RC PF_FileHandle::AllocatePage(PF_PageHandle *pageHandle) {
 
     *pageHandle = PF_PageHandle(header_.firstFree,
                                 bufferPage->Data() + PF_PAGE_HEADER_SIZE);
+
+    bufferPage->MarkDirty();
+    bufferPage->Pin();
   }
 
   header_.numPages++;
   isHeadModfied_ = true;
 
   return RC::OK;
+}
+
+RC PF_FileHandle::AllocateNewPage(PageNum pageNum) {
+  assert(IsOpen());
+
+  auto bufferPage =
+      std::unique_ptr<PF_BufferPage>(new PF_BufferPage(fd_, pageNum));
+  // Set page header.
+  auto *pageHeader = reinterpret_cast<PF_PageHeader *>(bufferPage->Data());
+  pageHeader->nextFree = USED_PAGE;
+  bufferPage->MarkDirty();
+  RC rc = bufferPage->WriteBack();
+  if (rc != RC::OK) {
+    return rc;
+  }
+  return bufferPool_->InsertPage(fd_, pageNum, std::move(bufferPage));
 }
 
 RC PF_FileHandle::DisposePage(PageNum pageNum) {
@@ -205,7 +227,6 @@ RC PF_FileHandle::DisposePage(PageNum pageNum) {
   if (bufferPage->IsPinned()) {
     return RC::PF_PAGEPINNED;
   }
-
   // update nextFree.
   PF_PageHeader *pageHeader =
       reinterpret_cast<PF_PageHeader *>(bufferPage->Data());
