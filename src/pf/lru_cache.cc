@@ -2,6 +2,7 @@
 #include "glog/logging.h"
 
 template <typename K, typename V> Queue<K, V>::~Queue() {
+  LOG(INFO) << "delete ...";
   Node<K, V> *n = front_;
   while (n != nullptr) {
     Node<K, V> *d = n;
@@ -22,6 +23,7 @@ void Queue<K, V>::Push(const K &key, std::unique_ptr<V> data) {
   Node<K, V> *n = new Node<K, V>(key, std::move(data));
   if (front_ == end_ && front_ == nullptr) {
     front_ = end_ = n;
+    ++size_;
     return;
   }
 
@@ -29,6 +31,8 @@ void Queue<K, V>::Push(const K &key, std::unique_ptr<V> data) {
   end_->next = n;
   n->prev = end_;
   end_ = n;
+
+  ++size_;
 }
 
 template <typename K, typename V> void Queue<K, V>::Pop() {
@@ -39,12 +43,16 @@ template <typename K, typename V> void Queue<K, V>::Pop() {
   if (front_ == end_) {
     delete front_;
     front_ = end_ = nullptr;
+    --size_;
+    return;
   }
 
   Node<K, V> *n = front_;
   front_->next->prev = nullptr;
   front_ = front_->next;
   delete n;
+
+  --size_;
 }
 
 template <typename K, typename V> void Queue<K, V>::MoveToEnd(Node<K, V> *n) {
@@ -54,19 +62,24 @@ template <typename K, typename V> void Queue<K, V>::MoveToEnd(Node<K, V> *n) {
 
   // case 1: n is the end node. no-op.
   if (n == end_) {
+    LOG(INFO) << "already end...";
     return;
   }
 
   // case 2: n is the front. move to end.
   if (n == front_) {
+    LOG(INFO) << "move front to end...";
     // remove from front.
+    LOG(INFO) << "detach front...";
     front_->next->prev = nullptr;
     front_ = front_->next;
+    LOG(INFO) << "move front to end...";
     // append to end.
     end_->next = n;
     n->next = nullptr;
     n->prev = end_;
     end_ = n;
+    return;
   }
 
   // case 3: neither front nor end. n is in the middle of the list.
@@ -84,21 +97,20 @@ template <typename K, typename V> void Queue<K, V>::MoveToEnd(Node<K, V> *n) {
 ///////////////////////////////////////////////////////////////////////////////
 // LRUCache
 template <typename K, typename V>
-LRUCache<K, V>::LRUCache(int size) : bufferSize_(size), curSize_(0) {}
+LRUCache<K, V>::LRUCache(int size) : capacity_(size), curSize_(0) {}
 
 // template <typename K, typename V>
 // LRUCache<K, V>::LRUCache(int size, std::function<bool(K, V *)> f)
-//     : bufferSize_(size), curSize_(0), evict_func_(f) {}
+//     : capacity_(size), curSize_(0), evict_func_(f) {}
 
 template <typename K, typename V>
-bool LRUCache<K, V>::Put(const K &key, std::unique_ptr<V> page) {
+bool LRUCache<K, V>::Put(const K &key, std::unique_ptr<V> value) {
   // when buffer is full.
-  if (curSize_ == bufferSize_) {
+  if (curSize_ == capacity_) {
     const Node<K, V> *victim = lru_queue_.Front();
     auto got = pool_.find(victim->key);
     if (got == pool_.end()) {
-      LOG(FATAL) << "key not found in cache: (" << victim->key.first << ", "
-                 << victim->key.second << ")";
+      LOG(FATAL) << "key not found in cache";
       return false;
     }
 
@@ -111,17 +123,19 @@ bool LRUCache<K, V>::Put(const K &key, std::unique_ptr<V> page) {
     // Remove from the pool.
     pool_.erase(victim->key);
     lru_queue_.Pop();
+
+    --curSize_;
   }
 
-  // Insert page.
-  lru_queue_.Push(key, std::move(page));
+  // Insert value.
+  lru_queue_.Push(key, std::move(value));
   auto res = pool_.insert(std::make_pair(key, lru_queue_.End()));
   if (!res.second) {
-    LOG(ERROR) << "failed to insert page: fd=" << key.first
-               << ",pageNum=" << key.second;
+    LOG(ERROR) << "failed to insert key";
     return false;
   }
 
+  ++curSize_;
   return true;
 }
 

@@ -97,3 +97,14 @@ cc_library(
         "@com_google_glog//:glog",
     ],
 )
+
+cc_test(
+    name = "lru_cache_test",
+    srcs = [
+        "lru_cache_test.cc",
+    ],
+    deps = [
+        ":lru_cache",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

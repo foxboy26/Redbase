@@ -65,13 +65,13 @@ public:
   V *Get(const K &key);
 
   bool Empty() { return curSize_ == 0; }
-  bool Size() { return curSize_; }
-  int Capacity() { return bufferSize_; }
+  int Size() { return curSize_; }
+  int Capacity() { return capacity_; }
 
   Iterator GetIterator() { return Iterator(pool_.begin(), pool_.end()); }
 
 private:
-  int bufferSize_;
+  int capacity_;
   int curSize_;
   Queue<K, V> lru_queue_;
   std::unordered_map<K, Node<K, V> *> pool_;
