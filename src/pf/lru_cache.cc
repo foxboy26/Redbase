@@ -97,7 +97,7 @@ template <typename K, typename V> void Queue<K, V>::MoveToEnd(Node<K, V> *n) {
 ///////////////////////////////////////////////////////////////////////////////
 // LRUCache
 template <typename K, typename V>
-LRUCache<K, V>::LRUCache(int size) : capacity_(size), curSize_(0) {}
+LRUCache<K, V>::LRUCache(int size) : capacity_(size) {}
 
 // template <typename K, typename V>
 // LRUCache<K, V>::LRUCache(int size, std::function<bool(K, V *)> f)
@@ -105,8 +105,13 @@ LRUCache<K, V>::LRUCache(int size) : capacity_(size), curSize_(0) {}
 
 template <typename K, typename V>
 bool LRUCache<K, V>::Put(const K &key, std::unique_ptr<V> value) {
+  // k-v pair already exists.
+  if (pool_.find(key) != pool_.end()) {
+    return false;
+  }
+
   // when buffer is full.
-  if (curSize_ == capacity_) {
+  if (pool_.size() == capacity_) {
     const Node<K, V> *victim = lru_queue_.Front();
     auto got = pool_.find(victim->key);
     if (got == pool_.end()) {
@@ -123,8 +128,6 @@ bool LRUCache<K, V>::Put(const K &key, std::unique_ptr<V> value) {
     // Remove from the pool.
     pool_.erase(victim->key);
     lru_queue_.Pop();
-
-    --curSize_;
   }
 
   // Insert value.
@@ -135,7 +138,6 @@ bool LRUCache<K, V>::Put(const K &key, std::unique_ptr<V> value) {
     return false;
   }
 
-  ++curSize_;
   return true;
 }
 

@@ -81,11 +81,14 @@ TEST(Queue, MoveToEnd) {
 } // namespace
 
 namespace {
-TEST(LRUCache, Put) {
+TEST(LRUCache, PutGet) {
   const int cap = 3;
   LRUCache<std::string, int> cache(cap);
   EXPECT_EQ(cache.Capacity(), cap);
   LOG(INFO) << "Capacity ok";
+
+  // Get should return nullptr when cache is empty.
+  EXPECT_EQ(cache.Get("non-exist"), nullptr);
 
   // insert element until cache is full.
   std::string str[3] = {"a", "b", "c"};
@@ -93,11 +96,18 @@ TEST(LRUCache, Put) {
     LOG(INFO) << "Put ok " << i;
     EXPECT_TRUE(cache.Put(str[i], std::unique_ptr<int>(new int(i))));
   }
+  EXPECT_EQ(cache.Size(), cap);
 
   for (int i = 0; i < cap; i++) {
     LOG(INFO) << "Get ok " << i;
     int *got = cache.Get(str[i]);
     EXPECT_EQ(*got, i);
+  }
+
+  std::string str_new[3] = {"d", "e", "f"};
+  for (int i = 0; i < cap; i++) {
+    EXPECT_TRUE(cache.Put(str_new[i], std::unique_ptr<int>(new int(i))));
+    EXPECT_EQ(cache.Get(str[i]), nullptr);
   }
 }
 } // namespace

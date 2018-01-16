@@ -16,6 +16,7 @@ template <typename K, typename V> struct Node {
       : key(key), data(std::move(data)), prev(nullptr), next(nullptr) {}
 };
 
+// Queue defines a double linked-list, which store a <K, V> pairs.
 template <typename K, typename V> class Queue {
 public:
   Queue() : front_(nullptr), end_(nullptr), size_(0) {}
@@ -58,23 +59,29 @@ public:
   };
 
   explicit LRUCache(int size);
-  //  explicit LRUCache(int size, std::function<bool(K, V *)> f);
   ~LRUCache() = default;
+
   void SetEvictFunction(std::function<bool(K, V *)> f) { evict_func_ = f; }
   bool Put(const K &key, std::unique_ptr<V> page);
   V *Get(const K &key);
 
-  bool Empty() { return curSize_ == 0; }
-  int Size() { return curSize_; }
+  // Empty returns true if the cache is empty.
+  bool Empty() { return pool_.empty(); }
+  // Size returns the current size of the LRU cache.
+  int Size() { return pool_.size(); }
+  // Capacity returns the capacity  of the LRU cache. i.e., the max number of
+  // elements allowed.
   int Capacity() { return capacity_; }
 
   Iterator GetIterator() { return Iterator(pool_.begin(), pool_.end()); }
 
 private:
-  int capacity_;
-  int curSize_;
+  int capacity_; // Capacity of the LRU cache.
+  // Internal queue (a double-linked list) to manage LRU.
   Queue<K, V> lru_queue_;
   std::unordered_map<K, Node<K, V> *> pool_;
+  // A user-defined evict function. This will be executed when an element is
+  // removed from the cache.
   std::function<bool(K, V *)> evict_func_;
 };
 
