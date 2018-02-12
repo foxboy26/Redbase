@@ -37,6 +37,7 @@ cc_test(
     deps = [
         ":pf_file_handle",
         ":pf_manager",
+        "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest_main",
     ],
 )

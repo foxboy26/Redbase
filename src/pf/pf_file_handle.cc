@@ -10,9 +10,9 @@
 #include "glog/logging.h"
 #include "src/pf/pf_internal.h"
 
-PF_FileHandle::PF_FileHandle()
-    : bufferPool_(nullptr), header_(), fd_(-1), isOpen_(false),
-      isHeadModfied_(false) {
+PF_FileHandle::PF_FileHandle(PF_BufferPool *bufferPool)
+    : bufferPool_(bufferPool), header_(), fd_(-1), isOpen_(false),
+      isHeaderModified_(false) {
   // Nothing
 }
 
@@ -81,7 +81,7 @@ RC PF_FileHandle::Open(const char *filename) {
 RC PF_FileHandle::Close() {
   assert(IsOpen());
 
-  if (isHeadModfied_) {
+  if (isHeaderModified_) {
     RC rc = WriteFileHeader();
     if (rc != RC::OK) {
       return rc;
@@ -100,41 +100,36 @@ RC PF_FileHandle::Close() {
 }
 
 RC PF_FileHandle::GetFirstPage(PF_PageHandle *pageHandle) const {
-  return GetThisPage(header_.firstPage, pageHandle);
+  return GetNextPage(-1, pageHandle);
 }
 
 RC PF_FileHandle::GetLastPage(PF_PageHandle *pageHandle) const {
-  return GetThisPage(header_.lastPage, pageHandle);
+  return GetPrevPage(header_.numPages, pageHandle);
 }
 
 RC PF_FileHandle::GetNextPage(PageNum current,
                               PF_PageHandle *pageHandle) const {
-  for (int i = current + 1; i <= header_.numPages; i++) {
-    PF_BufferPage *bufferPage;
-    RC rc = bufferPool_->GetPage(fd_, i, bufferPage);
-    if (rc != RC::OK) {
-      return rc;
+  for (int i = current + 1; i < header_.numPages; i++) {
+    RC rc = GetThisPage(i, pageHandle);
+    if (rc == RC::OK) {
+      return RC::OK;
     }
-    auto *pageHeader = reinterpret_cast<PF_PageHeader *>(bufferPage->Data());
-    if (pageHeader->nextFree == USED_PAGE) {
-      return GetThisPage(i, pageHandle);
+    if (rc == RC::PF_INVALIDPAGE) {
+      continue;
     }
   }
-
   return RC::PF_EOF;
 }
 
 RC PF_FileHandle::GetPrevPage(PageNum current,
                               PF_PageHandle *pageHandle) const {
   for (int i = current - 1; i >= 0; i--) {
-    PF_BufferPage *bufferPage;
-    RC rc = bufferPool_->GetPage(fd_, i, bufferPage);
-    if (rc != RC::OK) {
-      return rc;
+    RC rc = GetThisPage(i, pageHandle);
+    if (rc == RC::OK) {
+      return RC::OK;
     }
-    auto *pageHeader = reinterpret_cast<PF_PageHeader *>(bufferPage->Data());
-    if (pageHeader->nextFree == USED_PAGE) {
-      return GetThisPage(i, pageHandle);
+    if (rc == RC::PF_INVALIDPAGE) {
+      continue;
     }
   }
 
@@ -143,6 +138,7 @@ RC PF_FileHandle::GetPrevPage(PageNum current,
 
 RC PF_FileHandle::GetThisPage(PageNum pageNum,
                               PF_PageHandle *pageHandle) const {
+  LOG(INFO) << "GetThisPage...";
   PF_BufferPage *bufferPage;
   RC rc = bufferPool_->GetPage(fd_, pageNum, bufferPage);
   if (rc != RC::OK) {
@@ -150,6 +146,10 @@ RC PF_FileHandle::GetThisPage(PageNum pageNum,
   }
 
   // TODO(zhiheng) check header!
+  auto *pageHeader = reinterpret_cast<PF_PageHeader *>(bufferPage->Data());
+  if (pageHeader->nextFree != USED_PAGE) {
+    return RC::PF_INVALIDPAGE;
+  }
 
   *pageHandle =
       PF_PageHandle(pageNum, bufferPage->Data() + PF_PAGE_HEADER_SIZE);
@@ -160,6 +160,7 @@ RC PF_FileHandle::GetThisPage(PageNum pageNum,
 }
 
 RC PF_FileHandle::AllocatePage(PF_PageHandle *pageHandle) {
+  LOG(INFO) << "AllocatePage...";
   assert(IsOpen());
 
   RC rc;
@@ -170,10 +171,17 @@ RC PF_FileHandle::AllocatePage(PF_PageHandle *pageHandle) {
     if (rc != RC::OK) {
       return rc;
     }
-    return GetThisPage(pageNum, pageHandle);
+    rc = GetThisPage(pageNum, pageHandle);
+    if (rc != RC::OK) {
+      return rc;
+    }
+    header_.numPages++;
   } else {
+    LOG(INFO) << "reuse on free list, firstFree:  " << header_.firstFree;
+    // reuse ones on the free list.
     PF_BufferPage *bufferPage;
-    rc = bufferPool_->GetPage(fd_, header_.firstFree, bufferPage);
+    PageNum pageNum = header_.firstFree;
+    rc = bufferPool_->GetPage(fd_, pageNum, bufferPage);
     if (rc != RC::OK) {
       return rc;
     }
@@ -184,20 +192,20 @@ RC PF_FileHandle::AllocatePage(PF_PageHandle *pageHandle) {
     // Mark this page as used.
     pageHeader->nextFree = USED_PAGE;
 
-    *pageHandle = PF_PageHandle(header_.firstFree,
-                                bufferPage->Data() + PF_PAGE_HEADER_SIZE);
+    *pageHandle =
+        PF_PageHandle(pageNum, bufferPage->Data() + PF_PAGE_HEADER_SIZE);
 
     bufferPage->MarkDirty();
     bufferPage->Pin();
   }
 
-  header_.numPages++;
-  isHeadModfied_ = true;
+  isHeaderModified_ = true;
 
   return RC::OK;
 }
 
 RC PF_FileHandle::AllocateNewPage(PageNum pageNum) {
+  LOG(INFO) << "AllocateNewPage...";
   assert(IsOpen());
 
   auto bufferPage =
@@ -227,6 +235,7 @@ RC PF_FileHandle::DisposePage(PageNum pageNum) {
   if (bufferPage->IsPinned()) {
     return RC::PF_PAGEPINNED;
   }
+
   // update nextFree.
   PF_PageHeader *pageHeader =
       reinterpret_cast<PF_PageHeader *>(bufferPage->Data());
@@ -235,9 +244,9 @@ RC PF_FileHandle::DisposePage(PageNum pageNum) {
 
   // clear the data section.
   memset(bufferPage->Data() + PF_PAGE_HEADER_SIZE, 0, PF_PAGE_DATA_SIZE);
-
   bufferPage->MarkDirty();
-  isHeadModfied_ = true;
+
+  isHeaderModified_ = true;
   return RC::OK;
 }
 

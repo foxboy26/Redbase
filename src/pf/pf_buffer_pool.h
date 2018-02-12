@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <queue>
 #include <unordered_map>
 #include <utility>
 
@@ -15,6 +14,7 @@
 
 using PF_BufferPageKey = std::pair<int, PageNum>;
 
+// not thread-safe.
 class PF_BufferPage {
 public:
   explicit PF_BufferPage(int fd, PageNum pageNum);
@@ -55,7 +55,7 @@ namespace std {
 template <> struct hash<PF_BufferPageKey> {
 public:
   size_t operator()(const PF_BufferPageKey &key) const {
-    return static_cast<size_t>(key.first ^ key.second);
+    return static_cast<size_t>(key.first + key.second);
   }
 };
 }; // namespace std

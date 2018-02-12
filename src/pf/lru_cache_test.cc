@@ -1,4 +1,5 @@
 #include <string>
+#include <utility>
 
 #include "glog/logging.h"
 #include "googletest/include/gtest/gtest.h"
@@ -80,6 +81,18 @@ TEST(Queue, MoveToEnd) {
 }
 } // namespace
 
+using Key = std::pair<int, int>;
+Key MakeKey(int a, int b) { return std::make_pair(a, b); }
+
+namespace std {
+template <> struct hash<Key> {
+public:
+  size_t operator()(const Key &key) const {
+    return static_cast<size_t>(key.first ^ key.second);
+  }
+};
+}; // namespace std
+
 namespace {
 TEST(LRUCache, PutGet) {
   const int cap = 3;
@@ -104,10 +117,41 @@ TEST(LRUCache, PutGet) {
     EXPECT_EQ(*got, i);
   }
 
+  // Make sure new keys {"d", "e", "f"} evicts all old keys {"a", "b", "c"}
   std::string str_new[3] = {"d", "e", "f"};
   for (int i = 0; i < cap; i++) {
     EXPECT_TRUE(cache.Put(str_new[i], std::unique_ptr<int>(new int(i))));
     EXPECT_EQ(cache.Get(str[i]), nullptr);
+  }
+}
+
+TEST(LRUCache, PutGetComplexType) {
+  const int cap = 3;
+  LRUCache<Key, int> cache(cap);
+  EXPECT_EQ(cache.Capacity(), cap);
+  LOG(INFO) << "Capacity ok";
+
+  // Get should return nullptr when cache is empty.
+  EXPECT_EQ(cache.Get(MakeKey(1, 1)), nullptr);
+
+  // insert element until cache is full.
+  for (int i = 0; i < cap; i++) {
+    LOG(INFO) << "Put ok " << i;
+    EXPECT_TRUE(cache.Put(MakeKey(i, i), std::unique_ptr<int>(new int(i))));
+  }
+  EXPECT_EQ(cache.Size(), cap);
+
+  for (int i = 0; i < cap; i++) {
+    LOG(INFO) << "Get ok " << i;
+    int *got = cache.Get(MakeKey(i, i));
+    EXPECT_EQ(*got, i);
+  }
+
+  // Make sure new key (i + cap, i + cap) evicts all old keys (i, i)
+  for (int i = 0; i < cap; i++) {
+    auto key = MakeKey(i + cap, i + cap);
+    EXPECT_TRUE(cache.Put(key, std::unique_ptr<int>(new int(i))));
+    EXPECT_EQ(cache.Get(MakeKey(i, i)), nullptr);
   }
 }
 } // namespace

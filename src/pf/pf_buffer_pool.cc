@@ -48,7 +48,7 @@ RC PF_BufferPage::WriteBack() {
 }
 
 RC PF_BufferPage::Read() {
-  LOG(INFO) << "Read page from " << fd_ << ", " << pageNum_;
+  LOG(INFO) << "Read page from fd: " << fd_ << ", page_num: " << pageNum_;
   if (lseek(fd_, PageOffset(pageNum_), SEEK_SET) < 0) {
     return RC::PF_UNIX;
   }
@@ -72,6 +72,7 @@ bool EvictFunction(const PF_BufferPageKey &key, PF_BufferPage *page) {
   LOG(INFO) << "Evicting: " << key.first << " " << key.second;
   if (page->IsPinned()) {
     // return RC::PF_PAGEPINNED;
+    LOG(ERROR) << "Page is pinnned";
     return false;
   }
 
@@ -79,6 +80,7 @@ bool EvictFunction(const PF_BufferPageKey &key, PF_BufferPage *page) {
     LOG(INFO) << "PAGE is dirty need to write back to disk.";
     RC rc = page->WriteBack();
     if (rc != RC::OK) {
+      LOG(ERROR) << "WriteBack failed with rc: " << rc;
       return false;
       // return rc;
     }
@@ -96,6 +98,7 @@ PF_BufferPool::PF_BufferPool(int bufferSize)
 RC PF_BufferPool::InsertPage(int fd, PageNum pageNum,
                              std::unique_ptr<PF_BufferPage> page) {
   auto key = std::pair<int, PageNum>(fd, pageNum);
+  LOG(INFO) << "InsertPage... fd: " << key.first << "page_num: " << key.second;
   if (!pool_.Put(key, std::move(page))) {
     LOG(ERROR) << "failed to insert page: fd=" << key.first
                << ",pageNum=" << key.second;

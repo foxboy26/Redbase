@@ -17,7 +17,7 @@ struct PF_FileHeader {
 
 class PF_FileHandle {
 public:
-  PF_FileHandle();  // Default constructor
+  explicit PF_FileHandle(PF_BufferPool *bufferPool);
   ~PF_FileHandle(); // Destructor
 
   PF_FileHandle(const PF_FileHandle &fileHandle) = delete;
@@ -43,6 +43,8 @@ public:
                                                     //   to disk
   bool IsOpen() const { return fd_ != -1 && isOpen_; }
 
+  const PF_FileHeader &FileHeader() { return header_; }
+
 private:
   RC ReadFileHeader();
   RC WriteFileHeader();
@@ -55,7 +57,7 @@ private:
   PF_FileHeader header_;
   int fd_;
   bool isOpen_;
-  bool isHeadModfied_;
+  bool isHeaderModified_;
 };
 
 #endif // PF_PF_FILEHANDLE_H

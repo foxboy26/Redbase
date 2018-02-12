@@ -2,7 +2,6 @@
 #include "glog/logging.h"
 
 template <typename K, typename V> Queue<K, V>::~Queue() {
-  LOG(INFO) << "delete ...";
   Node<K, V> *n = front_;
   while (n != nullptr) {
     Node<K, V> *d = n;
@@ -62,18 +61,14 @@ template <typename K, typename V> void Queue<K, V>::MoveToEnd(Node<K, V> *n) {
 
   // case 1: n is the end node. no-op.
   if (n == end_) {
-    LOG(INFO) << "already end...";
     return;
   }
 
   // case 2: n is the front. move to end.
   if (n == front_) {
-    LOG(INFO) << "move front to end...";
     // remove from front.
-    LOG(INFO) << "detach front...";
     front_->next->prev = nullptr;
     front_ = front_->next;
-    LOG(INFO) << "move front to end...";
     // append to end.
     end_->next = n;
     n->next = nullptr;
@@ -105,13 +100,16 @@ LRUCache<K, V>::LRUCache(int size) : capacity_(size) {}
 
 template <typename K, typename V>
 bool LRUCache<K, V>::Put(const K &key, std::unique_ptr<V> value) {
-  // k-v pair already exists.
-  if (pool_.find(key) != pool_.end()) {
+  auto it = pool_.find(key);
+  if (it != pool_.end()) {
+    LOG(INFO) << "LRU PUT, exists...";
+    // k-v pair already exists.
     return false;
   }
 
   // when buffer is full.
-  if (pool_.size() == capacity_) {
+  if (static_cast<int>(pool_.size()) == capacity_) {
+    LOG(INFO) << "LRU PUT, size full...";
     const Node<K, V> *victim = lru_queue_.Front();
     auto got = pool_.find(victim->key);
     if (got == pool_.end()) {
@@ -131,6 +129,7 @@ bool LRUCache<K, V>::Put(const K &key, std::unique_ptr<V> value) {
   }
 
   // Insert value.
+  LOG(INFO) << "LRU PUT, insert ...";
   lru_queue_.Push(key, std::move(value));
   auto res = pool_.insert(std::make_pair(key, lru_queue_.End()));
   if (!res.second) {
