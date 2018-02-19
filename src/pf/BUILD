@@ -1,13 +1,13 @@
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "pf_page_handle",
+    name = "page_handle",
     srcs = [
-        "pf_page_handle.cc",
+        "page_handle.cc",
     ],
     hdrs = [
+        "page_handle.h",
         "pf.h",
-        "pf_page_handle.h",
     ],
     deps = [
         "//src:rc",
@@ -15,73 +15,73 @@ cc_library(
 )
 
 cc_library(
-    name = "pf_file_handle",
+    name = "file_handle",
     srcs = [
-        "pf_file_handle.cc",
+        "file_handle.cc",
     ],
     hdrs = [
-        "pf_file_handle.h",
+        "file_handle.h",
     ],
     deps = [
-        ":pf_buffer_pool",
-        ":pf_page_handle",
+        ":buffer_pool",
+        ":page_handle",
         "@com_google_glog//:glog",
     ],
 )
 
 cc_test(
-    name = "pf_file_handle_test",
+    name = "file_handle_test",
     srcs = [
-        "pf_file_handle_test.cc",
+        "file_handle_test.cc",
     ],
     deps = [
-        ":pf_file_handle",
-        ":pf_manager",
+        ":file_handle",
+        ":manager",
         "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest_main",
     ],
 )
 
 cc_library(
-    name = "pf_manager",
+    name = "manager",
     srcs = [
-        "pf_manager.cc",
+        "manager.cc",
     ],
     hdrs = [
-        "pf_manager.h",
+        "manager.h",
     ],
     deps = [
-        ":pf_buffer_pool",
-        ":pf_file_handle",
+        ":buffer_pool",
+        ":file_handle",
         "@com_google_glog//:glog",
     ],
 )
 
 cc_library(
-    name = "pf_buffer_pool",
+    name = "buffer_pool",
     srcs = [
-        "pf_buffer_pool.cc",
+        "buffer_pool.cc",
     ],
     hdrs = [
+        "buffer_pool.h",
+        "internal.h",
         "pf.h",
-        "pf_buffer_pool.h",
-        "pf_internal.h",
     ],
     deps = [
         ":lru_cache",
-        ":pf_page_handle",
+        ":page_handle",
         "//src:rc",
         "@com_google_glog//:glog",
     ],
 )
 
 cc_test(
-    name = "pf_buffer_pool_test",
+    name = "buffer_pool_test",
     srcs = [
-        "pf_buffer_pool_test.cc",
+        "buffer_pool_test.cc",
     ],
     deps = [
-        ":pf_buffer_pool",
+        ":buffer_pool",
         "@com_google_googletest//:gtest_main",
     ],
 )

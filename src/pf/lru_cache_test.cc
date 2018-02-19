@@ -31,7 +31,6 @@ TEST(Queue, PushPop) {
   }
 
   EXPECT_EQ(q.Size(), 0);
-  LOG(INFO) << "delete ...";
 }
 
 TEST(Queue, MoveToEnd) {
@@ -153,5 +152,29 @@ TEST(LRUCache, PutGetComplexType) {
     EXPECT_TRUE(cache.Put(key, std::unique_ptr<int>(new int(i))));
     EXPECT_EQ(cache.Get(MakeKey(i, i)), nullptr);
   }
+}
+
+TEST(LRUCache, Iterator) {
+  const int cap = 3;
+  LRUCache<std::string, int> cache(cap);
+  EXPECT_EQ(cache.Capacity(), cap);
+  LOG(INFO) << "Capacity ok";
+
+  // Get should return nullptr when cache is empty.
+  EXPECT_EQ(cache.Get("non-exist"), nullptr);
+
+  // insert element until cache is full.
+  std::string str[3] = {"a", "b", "c"};
+  for (int i = 0; i < cap; i++) {
+    LOG(INFO) << "Put ok " << i;
+    EXPECT_TRUE(cache.Put(str[i], std::unique_ptr<int>(new int(i))));
+  }
+  EXPECT_EQ(cache.Size(), cap);
+
+  auto it = cache.GetIterator();
+  do {
+    LOG(INFO) << it.Key() << " " << *(it.Data());
+    it.Next();
+  } while (it.HasNext());
 }
 } // namespace
