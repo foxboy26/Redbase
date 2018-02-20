@@ -1,6 +1,11 @@
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "pf",
+    hdrs = ["pf.h"],
+)
+
+cc_library(
     name = "page_handle",
     srcs = [
         "page_handle.cc",
@@ -10,7 +15,7 @@ cc_library(
         "pf.h",
     ],
     deps = [
-        "//src:rc",
+        "//src:common",
     ],
 )
 
@@ -70,7 +75,7 @@ cc_library(
     deps = [
         ":lru_cache",
         ":page_handle",
-        "//src:rc",
+        "//src:common",
         "@com_google_glog//:glog",
     ],
 )
@@ -108,4 +113,10 @@ cc_test(
         ":lru_cache",
         "@com_google_googletest//:gtest_main",
     ],
+)
+
+cc_library(
+    name = "internal",
+    hdrs = ["internal.h"],
+    deps = ["//src/pf"],
 )

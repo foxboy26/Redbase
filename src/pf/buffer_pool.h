@@ -12,7 +12,7 @@
 #include "src/pf/pf.h"
 #include "src/rc.h"
 
-using BufferPageKey = std::pair<int, PageNum>;
+using BufferPageKey = std::pair<int, redbase::pf::PageNum>;
 
 namespace std {
 template <> struct hash<BufferPageKey> {

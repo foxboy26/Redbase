@@ -15,11 +15,9 @@ cc_binary(
 )
 
 cc_library(
-    name = "rc",
-    #    srcs = [
-    #        "rc.cc",
-    #    ],
+    name = "common",
     hdrs = [
+        "common.h",
         "rc.h",
     ],
 )

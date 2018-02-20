@@ -27,6 +27,9 @@ enum RC {
   PF_INVALIDNAME,   // invalid file name
   PF_UNIX,          // Unix error
 
+  RM_INVALIDRECORDSIZE, //
+  RM_RECORDNOTFOUND,    //
+
   NOT_IMPLEMENTED, // function not implemented.
 
   RC_EOF,
