@@ -6,6 +6,7 @@
 #include "googletest/include/gtest/gtest.h"
 
 using redbase::RC;
+using redbase::pf::PageNum;
 
 #define EXPECT_OK(expr) EXPECT_THAT(expr, RC::OK)
 #define ASSERT_OK(expr) ASSERT_THAT(expr, RC::OK)
