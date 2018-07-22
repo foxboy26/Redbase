@@ -27,6 +27,7 @@ enum RC {
   PF_INVALIDNAME,   // invalid file name
   PF_UNIX,          // Unix error
 
+  RM_INVALID_RECORD,    // Invalid record indicates no data or rid is invalid.
   RM_INVALIDRECORDSIZE, //
   RM_RECORDNOTFOUND,    //
 
