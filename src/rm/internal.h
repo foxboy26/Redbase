@@ -23,10 +23,8 @@ struct HeaderPage {
       : recordSize(rSize), nextFree(1),
         numSlots(ComputeSlots(rSize, pf::PAGE_SIZE)) {}
 
-  void Serialize(char *pData) {
-    int numBytes = std::memcmp(this, pData, sizeof(HeaderPage));
-    LOG(INFO) << "write: " << numBytes;
-  }
+  void Marshal(char *pData) { std::memcpy(this, pData, sizeof(HeaderPage)); }
+  void Unmarshal(char *pData) { std::memcpy(pData, this, sizeof(HeaderPage)); }
 };
 
 /*

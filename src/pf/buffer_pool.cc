@@ -11,6 +11,12 @@
 #include "glog/logging.h"
 #include "src/pf/pf.h"
 
+namespace {
+off_t PageOffset(redbase::pf::PageNum pageNum) {
+  return redbase::pf::File_HEADER_SIZE + pageNum * redbase::pf::PAGE_SIZE;
+}
+} // namespace
+
 namespace redbase {
 namespace pf {
 BufferPage::BufferPage(int fd, PageNum pageNum)

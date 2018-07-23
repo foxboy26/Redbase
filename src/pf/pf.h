@@ -6,6 +6,7 @@ namespace pf {
 using PageNum = int;
 
 constexpr PageNum ALL_PAGES = -1;
+constexpr PageNum kInvalidPageNum = -2;
 } // namespace pf
 } // namespace redbase
 

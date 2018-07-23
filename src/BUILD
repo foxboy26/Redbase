@@ -6,9 +6,9 @@ cc_binary(
         "main.cc",
     ],
     deps = [
-        ":rc",
-        "//src/pf:pf_file_handle",
-        "//src/pf:pf_manager",
+        ":common",
+        "//src/pf:file_handle",
+        "//src/pf:manager",
         "@com_github_gflags_gflags//:gflags",
         "@com_google_glog//:glog",
     ],

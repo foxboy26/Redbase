@@ -12,6 +12,12 @@ class FileHandle {
 public:
   FileHandle();  // Constructor
   ~FileHandle(); // Destructor
+
+  // Open a file
+  RC OpenFile(const char *fileName);
+  // Close a file
+  RC CloseFile();
+
   // Get a record
   RC GetRec(const RID &rid, Record *rec) const;
   // Insert a new record, return record id

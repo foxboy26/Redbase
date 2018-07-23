@@ -69,10 +69,10 @@ cc_library(
     ],
     hdrs = [
         "buffer_pool.h",
-        "internal.h",
         "pf.h",
     ],
     deps = [
+        ":internal",
         ":lru_cache",
         ":page_handle",
         "//src:common",

@@ -1,42 +1,52 @@
 #include <fstream>
 #include <iostream>
 
-#include "src/pf/pf_file_handle.h"
-#include "src/pf/pf_manager.h"
+#include "src/pf/file_handle.h"
+#include "src/pf/manager.h"
 #include "src/rc.h"
 
 #include "gflags/gflags.h"
 #include "glog/logging.h"
 
-int main(int argc, char *argv[]) {
-  // Initialize Google's logging library.
-  google::InitGoogleLogging(argv[0]);
+using redbase::RC;
+using redbase::RC_Name;
+using std::cerr;
+using std::cout;
+using std::endl;
 
+void Init(int *argc, char ***argv) {
+  // Initialize glog library.
+  google::InitGoogleLogging((*argv)[0]);
+  // Initialize gflag library.
+  gflags::ParseCommandLineFlags(argc, argv, true /* remove_flag */);
+}
+
+int main(int argc, char *argv[]) {
+  Init(&argc, &argv);
   gflags::SetVersionString("0.1");
   std::cout << "Welcome to Redbase" << std::endl;
 
-  PF_Manager pfm;
+  redbase::pf::BufferPool buffer_pool(100);
+  redbase::pf::Manager pfm;
   RC rc = pfm.CreateFile("/home/zhiheng/test.rdb");
   if (rc != RC::OK) {
-    PF_PrintError(rc);
     return -1;
   }
 
-  std::cout << "trying to open file\n";
-  PF_FileHandle pf_fh;
+  cout << "trying to open file" << endl;
+  redbase::pf::FileHandle pf_fh(&buffer_pool);
   rc = pf_fh.Open("test.rdb");
   if (rc != RC::OK) {
-    PF_PrintError(rc);
+    cerr << "Error: " << RC_Name[rc] << endl;
   }
-  std::cout << "Is open: " << pf_fh.IsOpen() << std::endl;
+  cout << "Is open: " << pf_fh.IsOpen() << endl;
 
-  std::cout << "Closing file...\n";
+  cout << "Closing file...\n";
   rc = pf_fh.Close();
   if (rc != RC::OK) {
-    PF_PrintError(rc);
+    cerr << "Error: " << RC_Name[rc] << endl;
   }
 
   std::cout << "Bye!" << std::endl;
-
   return 0;
 }

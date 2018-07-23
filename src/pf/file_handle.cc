@@ -8,7 +8,6 @@
 #include <unistd.h>
 
 #include "glog/logging.h"
-#include "src/pf/internal.h"
 
 namespace redbase {
 namespace pf {

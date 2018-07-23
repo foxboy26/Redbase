@@ -1,11 +1,50 @@
 #include "file_handle.h"
-#include "src/pf/page_handle.h"
 
-namespace {} // namespace
+#include "glog/logging.h"
+#include "src/pf/page_handle.h"
 
 namespace redbase {
 namespace rm {
 FileHandle::FileHandle() : header_(-1), isHeaderModified_(false) {}
+
+RC FileHandle::OpenFile(const char *filename) {
+  RC rc = pfFileHandle_->Open(filename);
+  if (rc != RC::OK) {
+    LOG(ERROR) << "Fail to open file: " << filename;
+    return rc;
+  }
+
+  pf::PageHandle page;
+  rc = pfFileHandle_->GetThisPage(0, &page);
+  if (rc != RC::OK) {
+    LOG(ERROR) << "Failed to get header page";
+    return rc;
+  }
+  char *pData;
+  page.GetData(pData);
+  header_.Unmarshal(pData);
+  pfFileHandle_->UnpinPage(0);
+
+  return RC::OK;
+}
+
+RC FileHandle::CloseFile() {
+  if (isHeaderModified_) {
+    pf::PageHandle page;
+    RC rc = pfFileHandle_->GetThisPage(0, &page);
+    if (rc != RC::OK) {
+      LOG(ERROR) << "Failed to get header page";
+      return rc;
+    }
+    char *pData;
+    page.GetData(pData);
+    header_.Marshal(pData);
+    pfFileHandle_->MarkDirty(0);
+    pfFileHandle_->UnpinPage(0);
+  }
+
+  return pfFileHandle_->Close();
+}
 
 RC FileHandle::GetRec(const RID &rid, Record *rec) const {
   RC rc;
@@ -25,8 +64,8 @@ RC FileHandle::GetRec(const RID &rid, Record *rec) const {
   }
   // read actual record.
   int slotOffset = meta.ComputeSlotOffset(header_.recordSize, rid.GetSlotNum());
-  std::memcpy(rec->pData, pData + slotOffset, header_.recordSize);
-  rec->rid = rid;
+  std::memcpy(rec->pData_, pData + slotOffset, header_.recordSize);
+  rec->rid_ = rid;
 
   return pfFileHandle_->UnpinPage(rid.GetPageNum());
 }
@@ -54,8 +93,7 @@ RC FileHandle::InsertRec(const char *pData, RID *rid) {
 
   int slotNum = meta.FindEmptySlot();
   meta.SetSlot(slotNum);
-  rid->SetPageNum(header_.nextFree);
-  rid->SetSlotNum(slotNum);
+  *rid = RID(header_.nextFree, slotNum);
   // update page metadata
   meta.Marshal(pPageData);
   // copy pData to the page.
@@ -96,7 +134,7 @@ RC FileHandle::DeleteRec(const RID &rid) {
 RC FileHandle::UpdateRec(const Record &rec) {
   RC rc;
   pf::PageHandle page;
-  RID rid = rec.rid;
+  RID rid = rec.rid_;
   pf::PageNum pageNum = rid.GetPageNum();
   rc = pfFileHandle_->GetThisPage(pageNum, &page);
   if (rc != RC::OK) {
@@ -113,7 +151,7 @@ RC FileHandle::UpdateRec(const Record &rec) {
   }
   // write record.
   int slotOffset = meta.ComputeSlotOffset(header_.recordSize, rid.GetSlotNum());
-  std::memcpy(pData + slotOffset, rec.pData, header_.recordSize);
+  std::memcpy(pData + slotOffset, rec.pData_, header_.recordSize);
 
   pfFileHandle_->MarkDirty(pageNum);
   return pfFileHandle_->UnpinPage(pageNum);

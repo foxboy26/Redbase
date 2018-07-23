@@ -22,9 +22,6 @@ constexpr int BUFFER_SIZE = 40;
 const PageNum USED_PAGE = -2;
 const PageNum LAST_FREE = -3;
 
-off_t PageOffset(PageNum pageNum) {
-  return File_HEADER_SIZE + pageNum * PAGE_SIZE;
-}
 } // namespace pf
 } // namespace redbase
 #endif // PF_INTERNAL
