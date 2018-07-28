@@ -9,6 +9,9 @@
 
 namespace redbase {
 namespace rm {
+
+// A record identifier uniquely identifies a record within a given file, based
+// on the record's page number in the file and slot number within that page.
 class RID {
 public:
   RID() : pageNum_(redbase::pf::kInvalidPageNum), slotNum_(kInvalidSlotNum) {}
@@ -31,9 +34,12 @@ private:
   SlotNum slotNum_;
 };
 
+// The Record class defines record objects.
 class Record {
 public:
   Record() : rid_(), pData_(nullptr){};
+  Record(const Record &r) = delete;
+  Record &operator=(const Record &r) = delete;
 
   ~Record() = default;
 
