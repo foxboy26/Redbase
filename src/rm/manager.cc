@@ -5,7 +5,8 @@
 
 namespace redbase {
 namespace rm {
-Manager::Manager(pf::Manager *pfm) : pfManager_(pfm) {}
+Manager::Manager(pf::BufferPool *buffer_pool, pf::Manager *pfm)
+    : pfBufferPool_(buffer_pool), pfManager_(pfm) {}
 
 RC Manager::CreateFile(const char *filename, int recordSize) {
   if (recordSize >= pf::PAGE_SIZE) {
@@ -17,6 +18,10 @@ RC Manager::CreateFile(const char *filename, int recordSize) {
   }
 
   pf::FileHandle pfFileHandle(pfBufferPool_);
+  rc = pfFileHandle.Open(filename);
+  if (rc != RC::OK) {
+    return rc;
+  }
   pf::PageHandle page;
   pfFileHandle.AllocatePage(&page);
   pf::PageNum pageNum = page.GetPageNum();

@@ -114,3 +114,14 @@ cc_library(
         "@com_google_glog//:glog",
     ],
 )
+
+cc_test(
+    name = "manager_test",
+    srcs = [
+        "manager_test.cc",
+    ],
+    deps = [
+        ":manager",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

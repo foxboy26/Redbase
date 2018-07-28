@@ -8,14 +8,15 @@ namespace redbase {
 namespace rm {
 class Manager {
 public:
-  explicit Manager(pf::Manager *pfm); // Constructor
-  ~Manager();                         // Destructor
+  explicit Manager(pf::BufferPool *buffer_pool,
+                   pf::Manager *pfm); // Constructor
+  ~Manager() = default;               // Destructor
   // Create a new file
   RC CreateFile(const char *fileName, int recordSize);
   RC DestroyFile(const char *fileName); // Destroy a file
 private:
-  pf::Manager *pfManager_;
   pf::BufferPool *pfBufferPool_;
+  pf::Manager *pfManager_;
 };
 } // namespace rm
 } // namespace redbase
