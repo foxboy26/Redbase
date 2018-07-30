@@ -13,13 +13,16 @@ TEST(PageMetaData, MarshalUnMarshal) {
     }
     EXPECT_TRUE(header.IsFull());
 
-    char pData[100] = {0};
+    char pData[redbase::pf::PAGE_DATA_SIZE] = {0};
     header.Marshal(pData);
 
     redbase::rm::PageMetaData another(8);
     another.Unmarshal(pData);
     EXPECT_EQ(another.NextFree(), 10);
-    EXPECT_EQ("11111111", another.FreeSlotsString());
+
+    for (int i = 0; i < header.NumSlots(); i++) {
+      EXPECT_TRUE(header.GetSlot(i));
+    }
   }
 
   {
@@ -30,13 +33,32 @@ TEST(PageMetaData, MarshalUnMarshal) {
         header.SetSlot(i);
       }
     }
-    char pData[100] = {0};
+    char pData[redbase::pf::PAGE_DATA_SIZE] = {0};
     header.Marshal(pData);
 
     redbase::rm::PageMetaData another(23);
     another.Unmarshal(pData);
     EXPECT_EQ(another.NextFree(), 10);
-    EXPECT_EQ("10010010010010010010010", another.FreeSlotsString());
+    for (int i = 0; i < header.NumSlots(); i++) {
+      if (i % 3 == 0) {
+        EXPECT_TRUE(header.GetSlot(i));
+      } else {
+        EXPECT_FALSE(header.GetSlot(i));
+      }
+    }
   }
+}
+
+TEST(PageMetaData, FindEmptySlot) {
+  redbase::rm::PageMetaData header(8);
+  header.SetSlot(0);
+  header.SetSlot(3);
+  header.SetSlot(5);
+
+  EXPECT_EQ(1, header.FindEmptySlot());
+  header.SetSlot(1);
+
+  header.UnsetSlot(0);
+  EXPECT_EQ(0, header.FindEmptySlot());
 }
 } // namespace
