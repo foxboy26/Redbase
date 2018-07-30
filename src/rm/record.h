@@ -1,7 +1,8 @@
 #ifndef RM_RECORD_H
 #define RM_RECORD_H
 
-//#include "googletest/include/gtest/gtest_prod.h"
+#include <cstring>
+
 #include "src/pf/pf.h"
 #include "src/rc.h"
 #include "src/rm/rm.h"
@@ -34,6 +35,11 @@ private:
   SlotNum slotNum_;
 };
 
+bool operator==(const RID &lhs, const RID &rhs) {
+  return lhs.GetPageNum() == rhs.GetPageNum() &&
+         lhs.GetSlotNum() == rhs.GetSlotNum();
+}
+
 // The Record class defines record objects.
 class Record {
 public:
@@ -41,7 +47,12 @@ public:
   Record(const Record &r) = delete;
   Record &operator=(const Record &r) = delete;
 
-  ~Record() = default;
+  ~Record() {
+    if (pData_) {
+      delete[] pData_;
+      pData_ = nullptr;
+    }
+  };
 
   // Set pData to point to the record's contents
   RC GetData(char *&pData) const;
@@ -50,12 +61,18 @@ public:
   RC GetRid(RID *rid) const;
 
 private:
+  void Init(const RID &rid, const char *data, int size) {
+    rid_ = rid;
+    pData_ = new char[size];
+    std::memcpy(pData_, data, size);
+  }
+
   RID rid_;
   char *pData_;
 
   friend class FileHandle;
   FRIEND_TEST(RM_RecordTest, Get);
-};
+}; // namespace rm
 } // namespace rm
 } // namespace redbase
 

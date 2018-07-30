@@ -5,51 +5,14 @@
 
 namespace redbase {
 namespace rm {
-FileHandle::FileHandle() : header_(-1), isHeaderModified_(false) {}
-
-RC FileHandle::OpenFile(const char *filename) {
-  RC rc = pfFileHandle_->Open(filename);
-  if (rc != RC::OK) {
-    LOG(ERROR) << "Fail to open file: " << filename;
-    return rc;
-  }
-
-  pf::PageHandle page;
-  rc = pfFileHandle_->GetThisPage(0, &page);
-  if (rc != RC::OK) {
-    LOG(ERROR) << "Failed to get header page";
-    return rc;
-  }
-  char *pData;
-  page.GetData(pData);
-  header_.Unmarshal(pData);
-  pfFileHandle_->UnpinPage(0);
-
-  return RC::OK;
-}
-
-RC FileHandle::CloseFile() {
-  if (isHeaderModified_) {
-    pf::PageHandle page;
-    RC rc = pfFileHandle_->GetThisPage(0, &page);
-    if (rc != RC::OK) {
-      LOG(ERROR) << "Failed to get header page";
-      return rc;
-    }
-    char *pData;
-    page.GetData(pData);
-    header_.Marshal(pData);
-    pfFileHandle_->MarkDirty(0);
-    pfFileHandle_->UnpinPage(0);
-  }
-
-  return pfFileHandle_->Close();
-}
+FileHandle::FileHandle()
+    : header_(-1 /* record_size */, -1 /* num_slots */),
+      is_header_modified_(false) {}
 
 RC FileHandle::GetRec(const RID &rid, Record *rec) const {
   RC rc;
   pf::PageHandle page;
-  rc = pfFileHandle_->GetThisPage(rid.GetPageNum(), &page);
+  rc = pf_file_handle_->GetThisPage(rid.GetPageNum(), &page);
   if (rc != RC::OK) {
     return rc;
   }
@@ -57,104 +20,138 @@ RC FileHandle::GetRec(const RID &rid, Record *rec) const {
   char *pData;
   page.GetData(pData);
   // get page header (bitmap)
-  PageMetaData meta(header_.numSlots);
+  PageMetaData meta(header_.record_size);
   meta.Unmarshal(pData);
   if (!meta.GetSlot(rid.GetSlotNum())) {
     return RC::RM_RECORDNOTFOUND;
   }
   // read actual record.
-  int slotOffset = meta.ComputeSlotOffset(header_.recordSize, rid.GetSlotNum());
-  std::memcpy(rec->pData_, pData + slotOffset, header_.recordSize);
-  rec->rid_ = rid;
+  int slotOffset = meta.ComputeSlotOffset(rid.GetSlotNum());
+  rec->Init(rid, pData + slotOffset, header_.record_size);
 
-  return pfFileHandle_->UnpinPage(rid.GetPageNum());
+  return pf_file_handle_->UnpinPage(rid.GetPageNum());
 }
 
 RC FileHandle::InsertRec(const char *pData, RID *rid) {
-  pf::PageNum nextFree = header_.nextFree;
   RC rc;
+
+  // Allodate a new page if all exist pages are full.
   pf::PageHandle page;
-  rc = pfFileHandle_->GetThisPage(header_.nextFree, &page);
+  if (header_.next_free == -1) {
+    rc = pf_file_handle_->AllocatePage(&page);
+    if (rc != RC::OK) {
+      return rc;
+    }
+    header_.next_free = page.GetPageNum();
+    is_header_modified_ = true;
+  }
+
+  // Load the page with available slots.
+  const pf::PageNum page_num = header_.next_free;
+  rc = pf_file_handle_->GetThisPage(page_num, &page);
   if (rc != RC::OK) {
+    LOG(ERROR) << "no available page "
+               << "page_num=" << page_num;
     return rc;
   }
 
   char *pPageData;
   page.GetData(pPageData);
   // get page header (bitmap)
-  PageMetaData meta(header_.numSlots);
+  PageMetaData meta(header_.record_size);
   meta.Unmarshal(pData);
 
-  // if page is full, allocate and init a new page,
-  if (meta.IsFull()) {
-    header_.nextFree = meta.NextFree();
-    isHeaderModified_ = true;
+  int slot_num = meta.FindEmptySlot();
+  if (slot_num == -1) {
+    LOG(ERROR) << "no free slot";
+    return RC::RM_RECORDNOTFOUND;
   }
-
-  int slotNum = meta.FindEmptySlot();
-  meta.SetSlot(slotNum);
-  *rid = RID(header_.nextFree, slotNum);
+  meta.SetSlot(slot_num);
+  *rid = RID(page_num, slot_num);
+  // copy pData to the page.
+  int slotOffset = meta.ComputeSlotOffset(slot_num);
+  std::memcpy(pPageData + slotOffset, pData, header_.record_size);
   // update page metadata
   meta.Marshal(pPageData);
-  // copy pData to the page.
-  int slotOffset = meta.ComputeSlotOffset(header_.recordSize, slotNum);
-  std::memcpy(pPageData + slotOffset, pData, header_.recordSize);
-  pfFileHandle_->MarkDirty(nextFree);
-  pfFileHandle_->UnpinPage(nextFree);
+  // if page is full, allocate and init a new page,
+  if (meta.IsFull()) {
+    header_.next_free = meta.NextFree();
+    is_header_modified_ = true;
+  }
 
-  return RC::OK;
+  pf_file_handle_->MarkDirty(page_num);
+  return pf_file_handle_->UnpinPage(page_num);
 }
 
 RC FileHandle::DeleteRec(const RID &rid) {
   RC rc;
+
+  // Load the page by page_num
   pf::PageHandle page;
   pf::PageNum pageNum = rid.GetPageNum();
-  SlotNum slotNum = rid.GetSlotNum();
-  rc = pfFileHandle_->GetThisPage(pageNum, &page);
+  SlotNum slot_num = rid.GetSlotNum();
+  rc = pf_file_handle_->GetThisPage(pageNum, &page);
   if (rc != RC::OK) {
     return rc;
   }
 
   char *pData;
   page.GetData(pData);
-  // get page header (bitmap)
-  PageMetaData meta(header_.numSlots);
+
+  // Fetch page header (bitmap)
+  PageMetaData meta(header_.record_size);
   meta.Unmarshal(pData);
-  if (!meta.GetSlot(slotNum)) {
-    LOG(WARNING) << "slot " << slotNum << " is already mark as deleted";
+  if (!meta.GetSlot(slot_num)) {
+    LOG(WARNING) << "slot " << slot_num << " is already mark as deleted";
     return RC::OK;
   }
-  meta.UnsetSlot(slotNum);
+
+  // Mark the slot to be deleted. Also update the next_free if the page is full
+  // already.
+  if (meta.IsFull()) {
+    meta.SetNextFree(header_.next_free);
+    header_.next_free = pageNum;
+    is_header_modified_ = true;
+  }
+  meta.UnsetSlot(slot_num);
   meta.Marshal(pData);
 
-  pfFileHandle_->MarkDirty(rid.GetPageNum());
-  return pfFileHandle_->UnpinPage(rid.GetPageNum());
+  pf_file_handle_->MarkDirty(rid.GetPageNum());
+  return pf_file_handle_->UnpinPage(rid.GetPageNum());
 }
 
 RC FileHandle::UpdateRec(const Record &rec) {
-  RC rc;
-  pf::PageHandle page;
-  RID rid = rec.rid_;
+  RID rid;
+  RC rc = rec.GetRid(&rid);
+  if (rc != RC::OK) {
+    return rc;
+  }
+
+  // Load the page by page_num
   pf::PageNum pageNum = rid.GetPageNum();
-  rc = pfFileHandle_->GetThisPage(pageNum, &page);
+  pf::PageHandle page;
+  rc = pf_file_handle_->GetThisPage(pageNum, &page);
   if (rc != RC::OK) {
     return rc;
   }
 
   char *pData;
   page.GetData(pData);
-  // get page header (bitmap)
-  PageMetaData meta(header_.numSlots);
+
+  // Fetch page header (bitmap)
+  PageMetaData meta(header_.record_size);
   meta.Unmarshal(pData);
+
+  // Locate the record based on slot_num.
   if (!meta.GetSlot(rid.GetSlotNum())) {
     return RC::RM_RECORDNOTFOUND;
   }
-  // write record.
-  int slotOffset = meta.ComputeSlotOffset(header_.recordSize, rid.GetSlotNum());
-  std::memcpy(pData + slotOffset, rec.pData_, header_.recordSize);
+  // update the record, by replacing the content with |rec|.
+  int slotOffset = meta.ComputeSlotOffset(rid.GetSlotNum());
+  std::memcpy(pData + slotOffset, rec.pData_, header_.record_size);
 
-  pfFileHandle_->MarkDirty(pageNum);
-  return pfFileHandle_->UnpinPage(pageNum);
+  pf_file_handle_->MarkDirty(pageNum);
+  return pf_file_handle_->UnpinPage(pageNum);
 }
 
 } // namespace rm

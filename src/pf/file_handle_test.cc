@@ -1,30 +1,28 @@
 #include "file_handle.h"
-#include "manager.h"
 
 #include "absl/memory/memory.h"
-#include "googlemock/include/gmock/gmock.h"
-#include "googletest/include/gtest/gtest.h"
+#include "absl/strings/string_view.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+
+#include "src/common/test_utils.h"
+#include "src/pf/manager.h"
 
 using redbase::RC;
 using redbase::pf::PageNum;
 
-#define EXPECT_OK(expr) EXPECT_THAT(expr, RC::OK)
-#define ASSERT_OK(expr) ASSERT_THAT(expr, RC::OK)
-
 namespace {
 TEST(PF_FileHandleTest, OpenFile) {
-  const char *filename = "test.rdb";
-  redbase::pf::Manager pfm;
+  absl::string_view filename = "test.rdb";
+  redbase::pf::Manager pfm(absl::make_unique<redbase::pf::BufferPool>(5));
   ASSERT_OK(pfm.CreateFile(filename));
 
-  auto bufferPool = absl::make_unique<redbase::pf::BufferPool>(5);
-  redbase::pf::FileHandle fh(bufferPool.get());
-  EXPECT_FALSE(fh.IsOpen());
-  ASSERT_OK(fh.Open(filename));
+  redbase::pf::FileHandle fh;
+  ASSERT_OK(pfm.OpenFile(filename, &fh));
   EXPECT_TRUE(fh.IsOpen());
 
   // Close the file.
-  ASSERT_OK(fh.Close());
+  ASSERT_OK(pfm.CloseFile(&fh));
   EXPECT_FALSE(fh.IsOpen());
 
   // clean up.
@@ -32,9 +30,10 @@ TEST(PF_FileHandleTest, OpenFile) {
 }
 
 TEST(PF_FileHandleTest, OpenNonExistFile) {
-  redbase::pf::FileHandle fh(nullptr);
+  redbase::pf::Manager pfm(absl::make_unique<redbase::pf::BufferPool>(5));
+  redbase::pf::FileHandle fh;
   EXPECT_FALSE(fh.IsOpen());
-  EXPECT_EQ(fh.Open("non_exist.rdb"), RC::PF_UNIX);
+  EXPECT_EQ(RC::PF_UNIX, pfm.OpenFile("non_exist.rdb", &fh));
   EXPECT_FALSE(fh.IsOpen());
 }
 } // namespace
@@ -43,14 +42,14 @@ namespace {
 class FileHandleTest : public ::testing::Test {
 protected:
   FileHandleTest()
-      : filename_("file_handle_test.rdb"),
-        bufferPool_(absl::make_unique<redbase::pf::BufferPool>(5)) {}
+      : pfm_(absl::make_unique<redbase::pf::BufferPool>(5)),
+        filename_("file_handle_test.rdb") {}
   virtual ~FileHandleTest() = default;
 
   virtual void SetUp() override {
     ASSERT_OK(pfm_.CreateFile(filename_.c_str()));
-    redbase::pf::FileHandle fh(bufferPool_.get());
-    ASSERT_OK(fh.Open(filename_.c_str()));
+    redbase::pf::FileHandle fh;
+    ASSERT_OK(pfm_.OpenFile(filename_.c_str(), &fh));
 
     redbase::pf::PageHandle page;
     for (int i = 0; i < 10; i++) {
@@ -64,7 +63,8 @@ protected:
       EXPECT_EQ(fh.GetFileHeader().numPages, i + 1);
     }
 
-    ASSERT_OK(fh.Close());
+    ASSERT_OK(pfm_.CloseFile(&fh));
+    ASSERT_FALSE(fh.IsOpen());
   }
 
   virtual void TearDown() override {
@@ -73,12 +73,11 @@ protected:
 
   redbase::pf::Manager pfm_;
   std::string filename_;
-  std::unique_ptr<redbase::pf::BufferPool> bufferPool_;
 };
 
 TEST_F(FileHandleTest, AllocateDisposePage) {
-  redbase::pf::FileHandle fh(bufferPool_.get());
-  ASSERT_OK(fh.Open(filename_.c_str()));
+  redbase::pf::FileHandle fh;
+  ASSERT_OK(pfm_.OpenFile(filename_.c_str(), &fh));
 
   // Remove 0, 2, 4, 6, 8
   for (int i = 0; i < 5; i++) {
@@ -97,12 +96,12 @@ TEST_F(FileHandleTest, AllocateDisposePage) {
     ASSERT_OK(fh.UnpinPage(page.GetPageNum()));
   }
 
-  ASSERT_OK(fh.Close());
+  ASSERT_OK(pfm_.CloseFile(&fh));
 }
 
 TEST_F(FileHandleTest, AccessPage) {
-  redbase::pf::FileHandle fh(bufferPool_.get());
-  ASSERT_OK(fh.Open(filename_.c_str()));
+  redbase::pf::FileHandle fh;
+  ASSERT_OK(pfm_.OpenFile(filename_.c_str(), &fh));
 
   // Remove 0, 2, 4, 6, 8
   for (int i = 0; i < 5; i++) {
@@ -159,12 +158,12 @@ TEST_F(FileHandleTest, AccessPage) {
     EXPECT_EQ(cnt, 5);
   }
 
-  ASSERT_OK(fh.Close());
+  ASSERT_OK(pfm_.CloseFile(&fh));
 }
 
 TEST_F(FileHandleTest, CloseShouldFlushBufferPool) {
-  redbase::pf::FileHandle fh(bufferPool_.get());
-  ASSERT_OK(fh.Open(filename_.c_str()));
+  redbase::pf::FileHandle fh;
+  ASSERT_OK(pfm_.OpenFile(filename_.c_str(), &fh));
 
   redbase::pf::PageHandle page;
   ASSERT_OK(fh.GetFirstPage(&page));
@@ -187,7 +186,7 @@ TEST_F(FileHandleTest, CloseShouldFlushBufferPool) {
   }
   ASSERT_OK(fh.UnpinPage(page.GetPageNum()));
 
-  fh.Close();
+  ASSERT_OK(pfm_.CloseFile(&fh));
 }
 
 } // namespace

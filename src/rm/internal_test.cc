@@ -1,18 +1,7 @@
 #include "internal.h"
 
-#include "googlemock/include/gmock/gmock.h"
-#include "googletest/include/gtest/gtest.h"
-
-/*namespace {
-std::string charStr(char c) {
-  std::string s;
-  for (int i = 0; i < 8; i++) {
-    s.push_back(((c >> (8 - i - 1)) & 0x1) + '0');
-  }
-  return s;
-}
-} // namespace
-*/
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 
 namespace {
 TEST(PageMetaData, MarshalUnMarshal) {

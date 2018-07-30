@@ -1,6 +1,8 @@
 #ifndef RM_FILE_HANDLE_H
 #define RM_FILE_HANDLE_H
 
+#include <memory>
+
 #include "src/pf/file_handle.h"
 #include "src/rc.h"
 #include "src/rm/internal.h"
@@ -10,13 +12,8 @@ namespace redbase {
 namespace rm {
 class FileHandle {
 public:
-  FileHandle();  // Constructor
-  ~FileHandle(); // Destructor
-
-  // Open a file
-  RC OpenFile(const char *fileName);
-  // Close a file
-  RC CloseFile();
+  FileHandle();
+  ~FileHandle() = default;
 
   // Get a record
   RC GetRec(const RID &rid, Record *rec) const;
@@ -31,8 +28,10 @@ public:
 
 private:
   HeaderPage header_;
-  bool isHeaderModified_;
-  pf::FileHandle *pfFileHandle_;
+  bool is_header_modified_;
+  std::unique_ptr<pf::FileHandle> pf_file_handle_;
+
+  friend class Manager;
 };
 } // namespace rm
 } // namespace redbase

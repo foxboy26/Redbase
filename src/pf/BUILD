@@ -30,6 +30,7 @@ cc_library(
     deps = [
         ":buffer_pool",
         ":page_handle",
+        "@com_google_absl//absl/strings",
         "@com_google_glog//:glog",
     ],
 )
@@ -42,7 +43,9 @@ cc_test(
     deps = [
         ":file_handle",
         ":manager",
+        "//src/common:test_utils",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -58,6 +61,7 @@ cc_library(
     deps = [
         ":buffer_pool",
         ":file_handle",
+        "@com_google_absl//absl/strings",
         "@com_google_glog//:glog",
     ],
 )
@@ -87,6 +91,7 @@ cc_test(
     ],
     deps = [
         ":buffer_pool",
+        "//src/common:test_utils",
         "@com_google_googletest//:gtest_main",
     ],
 )

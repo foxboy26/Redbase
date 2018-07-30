@@ -6,9 +6,12 @@
 #include <unistd.h>
 
 #include "googletest/include/gtest/gtest.h"
+#include "src/common/test_utils.h"
+
+using redbase::RC;
 
 namespace {
-TEST(PF_BufferPageTest, Basic) {
+TEST(BufferPageTest, Basic) {
   redbase::pf::BufferPage page(1 /* fd */, 1 /* page num */);
 
   // check MarkDirty()
@@ -23,28 +26,39 @@ TEST(PF_BufferPageTest, Basic) {
   EXPECT_FALSE(page.IsPinned());
 }
 
-TEST(PF_BufferPageTest, ReadWriteNormal) {
-  int fd = open("test", O_RDWR | O_CREAT, 0600);
-  ASSERT_TRUE(fd >= 0);
-  char data[] = "abcdedfg";
-  ssize_t writeBytes = write(fd, data, sizeof(data));
-  ASSERT_TRUE(writeBytes == sizeof(data));
-  ASSERT_TRUE(close(fd) == 0);
+TEST(BufferPageTest, ReadWriteNormal) {
+  char data[] = "abcdefg";
+  int fd = open("read_write_normal", O_RDWR | O_CREAT, 0600);
+  ASSERT_GE(fd, 0);
+  redbase::pf::BufferPage page(fd, 0 /* page num */);
+  memcpy(page.Data(), data, sizeof(data));
+  page.MarkDirty();
+  RC rc = page.WriteBack();
+  EXPECT_OK(rc) << "got rc=" << redbase::RC_Name[rc];
+  EXPECT_FALSE(page.IsDirty());
 
-  fd = open("test", O_RDWR, 0600);
-  redbase::pf::BufferPage page(fd, 1 /* page num */);
-  EXPECT_EQ(page.Read(), redbase::RC::OK);
-  EXPECT_STREQ(page.Data(), "abcdefg");
-  ASSERT_TRUE(close(fd) == 0);
+  redbase::pf::BufferPage new_page(fd, 0 /* page_num */);
+  EXPECT_EQ(new_page.Read(), RC::OK);
+  EXPECT_STREQ(new_page.Data(), data);
+
+  ASSERT_EQ(0, close(fd));
 }
 
-TEST(PF_BufferPageTest, WritePagePinned) {
-  redbase::pf::BufferPage page(1 /* fd */, 1 /* page num */);
+TEST(BufferPageTest, WritePagePinned) {
+  int fd = open("test", O_RDWR | O_CREAT, 0600);
+  ASSERT_TRUE(fd >= 0);
+  redbase::pf::BufferPage page(fd, 0 /* page num */);
   page.MarkDirty();
   page.Pin();
   EXPECT_EQ(page.WriteBack(), redbase::RC::PF_PAGEPINNED);
 
   page.Unpin();
-  // EXPECT_EQ(page.WriteBack(), RC::OK);
+
+  RC rc = page.WriteBack();
+  EXPECT_OK(rc) << "got rc=" << redbase::RC_Name[rc];
+  EXPECT_FALSE(page.IsDirty());
+
+  ASSERT_EQ(0, close(fd));
+  ASSERT_EQ(0, remove("test"));
 }
 } // namespace

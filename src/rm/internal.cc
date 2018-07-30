@@ -19,7 +19,7 @@ int PageMetaData::FindEmptySlot() {
 }
 
 void PageMetaData::Unmarshal(const char *pData) {
-  std::memcpy(&nextFree_, pData, sizeof(pf::PageNum));
+  std::memcpy(&next_free_, pData, sizeof(pf::PageNum));
   pData = pData + sizeof(pf::PageNum);
   for (int i = 0; i < static_cast<int>(slots_.size()); i++) {
     slots_[i] = (pData[i / 8] >> (i % 8)) & 0x1;
@@ -27,7 +27,7 @@ void PageMetaData::Unmarshal(const char *pData) {
 }
 
 void PageMetaData::Marshal(char *pData) {
-  std::memcpy(pData, &nextFree_, sizeof(pf::PageNum));
+  std::memcpy(pData, &next_free_, sizeof(pf::PageNum));
   pData = pData + sizeof(pf::PageNum);
   for (int i = 0; i < static_cast<int>(slots_.size()); i++) {
     pData[i / 8] |= (slots_[i] << (i % 8));

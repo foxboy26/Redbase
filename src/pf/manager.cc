@@ -14,10 +14,12 @@
 
 namespace redbase {
 namespace pf {
-Manager::Manager() : bufferPool_(new BufferPool(PF_BUFFER_SIZE)) {}
+Manager::Manager(std::unique_ptr<BufferPool> buffer_pool)
+    : buffer_pool_(std::move(buffer_pool)) {}
 
-RC Manager::CreateFile(const char *filename) {
-  int fd = open(filename, O_CREAT | O_EXCL | O_WRONLY, 0600);
+RC Manager::CreateFile(absl::string_view file_name) {
+  int fd =
+      open(std::string(file_name).c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
   if (fd == -1) {
     LOG(ERROR) << "Open file failed";
     return RC::PF_UNIX;
@@ -33,31 +35,38 @@ RC Manager::CreateFile(const char *filename) {
   }
 
   if (writtenBytes < static_cast<ssize_t>(sizeof(header))) {
-    LOG(ERROR) << "Write incompleted header to the file: " << filename;
+    LOG(ERROR) << "Write incompleted header to the file: " << file_name;
     return RC::PF_HDRWRITE;
   }
 
   if (close(fd) == -1) {
-    LOG(ERROR) << "Failed to close file: " << filename;
+    LOG(ERROR) << "Failed to close file: " << file_name;
     return RC::PF_UNIX;
   }
 
   return RC::OK;
 }
 
-RC Manager::DestroyFile(const char *filename) {
-  if (remove(filename) == -1) {
+RC Manager::DestroyFile(absl::string_view file_name) {
+  if (remove(std::string(file_name).c_str()) == -1) {
     return RC::PF_UNIX;
   }
   return RC::OK;
 }
+
+RC Manager::OpenFile(absl::string_view file_name, FileHandle *file_handle) {
+  file_handle->buffer_pool_ = buffer_pool_.get();
+  return file_handle->Open(file_name);
+}
+
+RC Manager::CloseFile(FileHandle *file_handle) { return file_handle->Close(); }
 
 RC Manager::AllocateBlock(char *&buffer) {
-  return bufferPool_->AllocateBlock(buffer);
+  return buffer_pool_->AllocateBlock(buffer);
 }
 
 RC Manager::DisposeBlock(char *buffer) {
-  return bufferPool_->DisposeBlock(buffer);
+  return buffer_pool_->DisposeBlock(buffer);
 }
 } // namespace pf
 } // namespace redbase

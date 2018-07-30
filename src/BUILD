@@ -10,6 +10,7 @@ cc_binary(
         "//src/pf:file_handle",
         "//src/pf:manager",
         "@com_github_gflags_gflags//:gflags",
+        "@com_google_absl//absl/memory",
         "@com_google_glog//:glog",
     ],
 )

@@ -58,6 +58,7 @@ cc_test(
     deps = [
         ":file_handle",
         ":manager",
+        "//src/common:test_utils",
         "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest_main",
     ],
@@ -111,6 +112,7 @@ cc_library(
         ":internal",
         ":rm",
         "//src/pf:manager",
+        "@com_google_absl//absl/strings",
         "@com_google_glog//:glog",
     ],
 )
@@ -122,6 +124,8 @@ cc_test(
     ],
     deps = [
         ":manager",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
 )

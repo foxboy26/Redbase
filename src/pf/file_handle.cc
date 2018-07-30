@@ -12,8 +12,8 @@
 namespace redbase {
 namespace pf {
 FileHandle::FileHandle(BufferPool *bufferPool)
-    : bufferPool_(bufferPool), header_(), fd_(-1), isOpen_(false),
-      isHeaderModified_(false) {
+    : buffer_pool_(bufferPool), header_(), fd_(-1), is_open_(false),
+      is_header_modified(false) {
   // Nothing
 }
 
@@ -33,11 +33,11 @@ RC FileHandle::ReadFileHeader() {
   if (lseek(fd_, 0, SEEK_SET) < 0) {
     return RC::PF_UNIX;
   }
-  ssize_t readBytes = read(fd_, &header_, sizeof(header_));
-  if (readBytes < 0) {
+  ssize_t read_bytes = read(fd_, &header_, sizeof(header_));
+  if (read_bytes < 0) {
     return RC::PF_UNIX;
   }
-  if (readBytes < static_cast<ssize_t>(sizeof(header_))) {
+  if (read_bytes < static_cast<ssize_t>(sizeof(header_))) {
     return RC::PF_HDRREAD;
   }
 
@@ -62,11 +62,11 @@ RC FileHandle::WriteFileHeader() {
   return OK;
 }
 
-RC FileHandle::Open(const char *filename) {
+RC FileHandle::Open(absl::string_view file_name) {
   // make sure the file is not opened.
   assert(!IsOpen());
 
-  int fd = open(filename, O_RDWR, 0600);
+  int fd = open(std::string(file_name).c_str(), O_RDWR, 0600);
   LOG(INFO) << "fd:  " << fd << "\n";
   if (fd < 0) {
     return RC::PF_UNIX;
@@ -74,7 +74,7 @@ RC FileHandle::Open(const char *filename) {
 
   // mark file as opened.
   fd_ = fd;
-  isOpen_ = true;
+  is_open_ = true;
 
   return ReadFileHeader();
 }
@@ -82,14 +82,14 @@ RC FileHandle::Open(const char *filename) {
 RC FileHandle::Close() {
   assert(IsOpen());
 
-  if (isHeaderModified_) {
+  if (is_header_modified) {
     RC rc = WriteFileHeader();
     if (rc != RC::OK) {
       return rc;
     }
   }
 
-  RC rc = bufferPool_->ForceAllPages(fd_);
+  RC rc = buffer_pool_->ForceAllPages(fd_);
   if (rc != RC::OK) {
     return rc;
   }
@@ -99,23 +99,23 @@ RC FileHandle::Close() {
   }
 
   // Update internal states
-  isOpen_ = false;
+  is_open_ = false;
   fd_ = -1;
 
   return RC::OK;
 }
 
-RC FileHandle::GetFirstPage(PageHandle *pageHandle) const {
-  return GetNextPage(-1, pageHandle);
+RC FileHandle::GetFirstPage(PageHandle *page_handle) const {
+  return GetNextPage(-1, page_handle);
 }
 
-RC FileHandle::GetLastPage(PageHandle *pageHandle) const {
-  return GetPrevPage(header_.numPages, pageHandle);
+RC FileHandle::GetLastPage(PageHandle *page_handle) const {
+  return GetPrevPage(header_.numPages, page_handle);
 }
 
-RC FileHandle::GetNextPage(PageNum current, PageHandle *pageHandle) const {
+RC FileHandle::GetNextPage(PageNum current, PageHandle *page_handle) const {
   for (int i = current + 1; i < header_.numPages; i++) {
-    RC rc = GetThisPage(i, pageHandle);
+    RC rc = GetThisPage(i, page_handle);
     if (rc == RC::OK) {
       return RC::OK;
     }
@@ -126,9 +126,9 @@ RC FileHandle::GetNextPage(PageNum current, PageHandle *pageHandle) const {
   return RC::PF_EOF;
 }
 
-RC FileHandle::GetPrevPage(PageNum current, PageHandle *pageHandle) const {
+RC FileHandle::GetPrevPage(PageNum current, PageHandle *page_handle) const {
   for (int i = current - 1; i >= 0; i--) {
-    RC rc = GetThisPage(i, pageHandle);
+    RC rc = GetThisPage(i, page_handle);
     if (rc == RC::OK) {
       return RC::OK;
     }
@@ -140,28 +140,28 @@ RC FileHandle::GetPrevPage(PageNum current, PageHandle *pageHandle) const {
   return RC::PF_EOF;
 }
 
-RC FileHandle::GetThisPage(PageNum pageNum, PageHandle *pageHandle) const {
-  LOG(INFO) << "GetThisPage...";
-  BufferPage *bufferPage;
-  RC rc = bufferPool_->GetPage(fd_, pageNum, bufferPage);
+RC FileHandle::GetThisPage(PageNum pageNum, PageHandle *page_handle) const {
+  LOG(INFO) << "GetThisPage page_num=" << pageNum;
+  BufferPage *buffer_page;
+  RC rc = buffer_pool_->GetPage(fd_, pageNum, buffer_page);
   if (rc != RC::OK) {
     return rc;
   }
 
   // TODO(zhiheng) check header!
-  auto *pageHeader = reinterpret_cast<PageHeader *>(bufferPage->Data());
+  auto *pageHeader = reinterpret_cast<PageHeader *>(buffer_page->Data());
   if (pageHeader->nextFree != USED_PAGE) {
     return RC::PF_INVALIDPAGE;
   }
 
-  *pageHandle = PageHandle(pageNum, bufferPage->Data() + PAGE_HEADER_SIZE);
+  *page_handle = PageHandle(pageNum, buffer_page->Data() + PAGE_HEADER_SIZE);
 
-  bufferPage->Pin();
+  buffer_page->Pin();
 
   return RC::OK;
 }
 
-RC FileHandle::AllocatePage(PageHandle *pageHandle) {
+RC FileHandle::AllocatePage(PageHandle *page_handle) {
   LOG(INFO) << "AllocatePage...";
   assert(IsOpen());
 
@@ -173,7 +173,7 @@ RC FileHandle::AllocatePage(PageHandle *pageHandle) {
     if (rc != RC::OK) {
       return rc;
     }
-    rc = GetThisPage(pageNum, pageHandle);
+    rc = GetThisPage(pageNum, page_handle);
     if (rc != RC::OK) {
       return rc;
     }
@@ -181,25 +181,26 @@ RC FileHandle::AllocatePage(PageHandle *pageHandle) {
   } else {
     LOG(INFO) << "reuse on free list, firstFree:  " << header_.firstFree;
     // reuse ones on the free list.
-    BufferPage *bufferPage;
+    BufferPage *buffer_page;
     PageNum pageNum = header_.firstFree;
-    rc = bufferPool_->GetPage(fd_, pageNum, bufferPage);
+    rc = buffer_pool_->GetPage(fd_, pageNum, buffer_page);
     if (rc != RC::OK) {
       return rc;
     }
-    PageHeader *pageHeader = reinterpret_cast<PageHeader *>(bufferPage->Data());
+    PageHeader *pageHeader =
+        reinterpret_cast<PageHeader *>(buffer_page->Data());
     // Update the nextFree pointer.
     header_.firstFree = pageHeader->nextFree;
     // Mark this page as used.
     pageHeader->nextFree = USED_PAGE;
 
-    *pageHandle = PageHandle(pageNum, bufferPage->Data() + PAGE_HEADER_SIZE);
+    *page_handle = PageHandle(pageNum, buffer_page->Data() + PAGE_HEADER_SIZE);
 
-    bufferPage->MarkDirty();
-    bufferPage->Pin();
+    buffer_page->MarkDirty();
+    buffer_page->Pin();
   }
 
-  isHeaderModified_ = true;
+  is_header_modified = true;
 
   return RC::OK;
 }
@@ -208,16 +209,16 @@ RC FileHandle::AllocateNewPage(PageNum pageNum) {
   LOG(INFO) << "AllocateNewPage...";
   assert(IsOpen());
 
-  auto bufferPage = std::unique_ptr<BufferPage>(new BufferPage(fd_, pageNum));
+  auto buffer_page = std::unique_ptr<BufferPage>(new BufferPage(fd_, pageNum));
   // Set page header.
-  auto *pageHeader = reinterpret_cast<PageHeader *>(bufferPage->Data());
+  auto *pageHeader = reinterpret_cast<PageHeader *>(buffer_page->Data());
   pageHeader->nextFree = USED_PAGE;
-  bufferPage->MarkDirty();
-  RC rc = bufferPage->WriteBack();
+  buffer_page->MarkDirty();
+  RC rc = buffer_page->WriteBack();
   if (rc != RC::OK) {
     return rc;
   }
-  return bufferPool_->InsertPage(fd_, pageNum, std::move(bufferPage));
+  return buffer_pool_->InsertPage(fd_, pageNum, std::move(buffer_page));
 }
 
 RC FileHandle::DisposePage(PageNum pageNum) {
@@ -225,48 +226,48 @@ RC FileHandle::DisposePage(PageNum pageNum) {
   assert(IsValidPageNum(pageNum));
 
   RC rc;
-  BufferPage *bufferPage;
-  rc = bufferPool_->GetPage(fd_, pageNum, bufferPage);
+  BufferPage *buffer_page;
+  rc = buffer_pool_->GetPage(fd_, pageNum, buffer_page);
   if (rc != RC::OK) {
     return rc;
   }
 
-  if (bufferPage->IsPinned()) {
+  if (buffer_page->IsPinned()) {
     return RC::PF_PAGEPINNED;
   }
 
   // update nextFree.
-  PageHeader *pageHeader = reinterpret_cast<PageHeader *>(bufferPage->Data());
+  PageHeader *pageHeader = reinterpret_cast<PageHeader *>(buffer_page->Data());
   pageHeader->nextFree = header_.firstFree;
   header_.firstFree = pageNum;
 
   // clear the data section.
-  memset(bufferPage->Data() + PAGE_HEADER_SIZE, 0, PAGE_DATA_SIZE);
-  bufferPage->MarkDirty();
+  memset(buffer_page->Data() + PAGE_HEADER_SIZE, 0, PAGE_DATA_SIZE);
+  buffer_page->MarkDirty();
 
-  isHeaderModified_ = true;
+  is_header_modified = true;
   return RC::OK;
 }
 
 RC FileHandle::MarkDirty(PageNum pageNum) const {
   assert(IsOpen());
   assert(IsValidPageNum(pageNum));
-  return bufferPool_->MarkDirty(fd_, pageNum);
+  return buffer_pool_->MarkDirty(fd_, pageNum);
 }
 
 RC FileHandle::UnpinPage(PageNum pageNum) const {
   assert(IsOpen());
   assert(IsValidPageNum(pageNum));
-  return bufferPool_->UnpinPage(fd_, pageNum);
+  return buffer_pool_->UnpinPage(fd_, pageNum);
 }
 
 RC FileHandle::ForcePages(PageNum pageNum) const {
   assert(IsOpen());
   assert(IsValidPageNum(pageNum));
   if (pageNum == ALL_PAGES) {
-    return bufferPool_->ForceAllPages(fd_);
+    return buffer_pool_->ForceAllPages(fd_);
   }
-  return bufferPool_->ForcePage(fd_, pageNum);
+  return buffer_pool_->ForcePage(fd_, pageNum);
 }
 } // namespace pf
 } // namespace redbase

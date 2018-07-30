@@ -52,6 +52,7 @@ RC BufferPage::WriteBack() {
     return RC::PF_INCOMPLETEWRITE;
   }
 
+  isDirty_ = false;
   return RC::OK;
 }
 

@@ -1,6 +1,8 @@
 #ifndef PF_FILEHANDLE_H
 #define PF_FILEHANDLE_H
 
+#include "absl/strings/string_view.h"
+
 #include "src/pf/buffer_pool.h"
 #include "src/pf/page_handle.h"
 
@@ -18,35 +20,39 @@ struct FileHeader {
 
 class FileHandle {
 public:
-  explicit FileHandle(BufferPool *bufferPool);
+  explicit FileHandle()
+      : buffer_pool_(nullptr), header_(), fd_(-1), is_open_(false),
+        is_header_modified(false) {}
   ~FileHandle(); // Destructor
 
   FileHandle(const FileHandle &fileHandle) = delete;
   FileHandle &operator=(const FileHandle &fileHandle) = delete;
 
-  RC Open(const char *filename);
+  RC Open(absl::string_view file_name);
   RC Close();
 
-  RC GetFirstPage(PageHandle *pageHandle) const; // Get the first page
-  RC GetLastPage(PageHandle *pageHandle) const;  // Get the last page
+  RC GetFirstPage(PageHandle *page_handle) const; // Get the first page
+  RC GetLastPage(PageHandle *page_handle) const;  // Get the last page
 
   // Get the next page
-  RC GetNextPage(PageNum current, PageHandle *pageHandle) const;
+  RC GetNextPage(PageNum current, PageHandle *page_handle) const;
   // Get the previous page
-  RC GetPrevPage(PageNum current, PageHandle *pageHandle) const;
+  RC GetPrevPage(PageNum current, PageHandle *page_handle) const;
   // Get a specific page
-  RC GetThisPage(PageNum pageNum, PageHandle *pageHandle) const;
-  RC AllocatePage(PageHandle *pageHandle);          // Allocate a new page
+  RC GetThisPage(PageNum pageNum, PageHandle *page_handle) const;
+  RC AllocatePage(PageHandle *page_handle);         // Allocate a new page
   RC DisposePage(PageNum pageNum);                  // Dispose of a page
   RC MarkDirty(PageNum pageNum) const;              // Mark a page as dirty
   RC UnpinPage(PageNum pageNum) const;              // Unpin a page
   RC ForcePages(PageNum pageNum = ALL_PAGES) const; // Write dirty page(s)
                                                     //   to disk
-  bool IsOpen() const { return fd_ != -1 && isOpen_; }
+  bool IsOpen() const { return fd_ != -1 && is_open_; }
 
   const FileHeader &GetFileHeader() { return header_; }
 
 private:
+  explicit FileHandle(BufferPool *buffer_pool);
+
   RC ReadFileHeader();
   RC WriteFileHeader();
   RC AllocateNewPage(PageNum pageNum);
@@ -54,11 +60,13 @@ private:
     return (pageNum >= 0 && pageNum <= header_.numPages);
   }
 
-  BufferPool *bufferPool_; // not owned.
+  BufferPool *buffer_pool_ = nullptr; // not owned.
   FileHeader header_;
   int fd_;
-  bool isOpen_;
-  bool isHeaderModified_;
+  bool is_open_;
+  bool is_header_modified;
+
+  friend class Manager;
 };
 } // namespace pf
 } // namespace redbase

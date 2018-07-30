@@ -1,12 +1,13 @@
 #include <fstream>
 #include <iostream>
 
+#include "absl/memory/memory.h"
+#include "gflags/gflags.h"
+#include "glog/logging.h"
+
 #include "src/pf/file_handle.h"
 #include "src/pf/manager.h"
 #include "src/rc.h"
-
-#include "gflags/gflags.h"
-#include "glog/logging.h"
 
 using redbase::RC;
 using redbase::RC_Name;
@@ -26,16 +27,16 @@ int main(int argc, char *argv[]) {
   gflags::SetVersionString("0.1");
   std::cout << "Welcome to Redbase" << std::endl;
 
-  redbase::pf::BufferPool buffer_pool(100);
-  redbase::pf::Manager pfm;
+  auto buffer_pool = absl::make_unique<redbase::pf::BufferPool>(100);
+  redbase::pf::Manager pfm(std::move(buffer_pool));
   RC rc = pfm.CreateFile("/home/zhiheng/test.rdb");
   if (rc != RC::OK) {
     return -1;
   }
 
   cout << "trying to open file" << endl;
-  redbase::pf::FileHandle pf_fh(&buffer_pool);
-  rc = pf_fh.Open("test.rdb");
+  redbase::pf::FileHandle pf_fh;
+  pfm.OpenFile("/home/zhiheng/test.rdb", &pf_fh);
   if (rc != RC::OK) {
     cerr << "Error: " << RC_Name[rc] << endl;
   }
