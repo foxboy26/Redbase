@@ -19,6 +19,7 @@ namespace redbase {
 namespace rm {
 constexpr int kRecordSize = 5;
 constexpr int kBufferPoolSize = 5;
+constexpr int kLargeRecordSize = 2000;
 
 class RM_FileHandleTest : public ::testing::Test {
 protected:
@@ -126,6 +127,23 @@ TEST_F(RM_FileHandleTest, Update) {
   }
 
   for (int i = 0; i < 5; i++) {
+    RID rid(1 /* page_num */, i * 2 /*slot_num*/);
+    Record record;
+    EXPECT_OK(fh.GetRec(rid, &record));
+
+    RID got_rid;
+    EXPECT_OK(record.GetRid(&got_rid));
+    EXPECT_EQ(rid, got_rid);
+
+    char *data;
+    EXPECT_OK(record.GetData(data));
+    for (int j = 0; j < kRecordSize; j++) {
+      EXPECT_EQ(static_cast<char>(i * 2 + 'a'), data[j]);
+    }
+  }
+
+  // turn record with slot_num = i*2 to upper case.
+  for (int i = 0; i < 5; i++) {
     char data[kRecordSize];
     std::memset(data, static_cast<char>(i * 2 + 'A'), kRecordSize);
     Record record;
@@ -146,6 +164,64 @@ TEST_F(RM_FileHandleTest, Update) {
     EXPECT_OK(record.GetData(data));
     for (int j = 0; j < kRecordSize; j++) {
       EXPECT_EQ(static_cast<char>(i * 2 + 'A'), data[j]);
+    }
+  }
+}
+
+class RM_FileHandleLargeTest : public ::testing::Test {
+protected:
+  RM_FileHandleLargeTest()
+      : filename_("file_handle_test.rdb"),
+        pfm_(absl::make_unique<redbase::pf::Manager>(
+            absl::make_unique<redbase::pf::BufferPool>(kBufferPoolSize))),
+        rmm_(absl::make_unique<redbase::rm::Manager>(pfm_.get())) {}
+  virtual ~RM_FileHandleLargeTest() = default;
+
+  virtual void SetUp() override {
+    ASSERT_OK(rmm_->CreateFile(filename_, kLargeRecordSize));
+  }
+
+  virtual void TearDown() override { ASSERT_OK(rmm_->DestroyFile(filename_)); }
+
+  std::string filename_;
+  std::unique_ptr<redbase::pf::Manager> pfm_;
+  std::unique_ptr<redbase::rm::Manager> rmm_;
+};
+
+TEST_F(RM_FileHandleLargeTest, ManyInsert) {
+  redbase::rm::FileHandle fh;
+  ASSERT_OK(rmm_->OpenFile(filename_, &fh));
+
+  for (int i = 0; i < 6; i++) {
+    char data[kRecordSize];
+    std::memset(data, static_cast<char>(i + 'a'), kRecordSize);
+    RID rid;
+    EXPECT_OK(fh.InsertRec(data, &rid));
+    EXPECT_EQ(RID(i / 2 + 1 /* page_num */, i % 2 /*slot_num*/), rid);
+  }
+
+  EXPECT_OK(fh.DeleteRec(RID(2, 0)));
+  EXPECT_OK(fh.DeleteRec(RID(1, 1)));
+
+  {
+    char data[kLargeRecordSize];
+    std::memset(data, static_cast<char>('A'), kLargeRecordSize);
+    RID rid;
+    EXPECT_OK(fh.InsertRec(data, &rid));
+    EXPECT_EQ(RID(1 /* page_num */, 1 /*slot_num*/), rid);
+    for (int j = 0; j < kLargeRecordSize; j++) {
+      EXPECT_EQ(static_cast<char>('A'), data[j]);
+    }
+  }
+
+  {
+    char data[kLargeRecordSize];
+    std::memset(data, static_cast<char>('Z'), kLargeRecordSize);
+    RID rid;
+    EXPECT_OK(fh.InsertRec(data, &rid));
+    EXPECT_EQ(RID(2 /* page_num */, 0 /*slot_num*/), rid);
+    for (int j = 0; j < kLargeRecordSize; j++) {
+      EXPECT_EQ(static_cast<char>('Z'), data[j]);
     }
   }
 }

@@ -99,7 +99,9 @@ private:
   }
 
   // The bitmap needs ceiling(num_slots_ / 8) bytes.
-  int HeaderSize() { return sizeof(next_free_) + (num_slots_ + 8 - 1) / 8; }
+  int HeaderSize() {
+    return sizeof(next_free_) + sizeof(usedSlots_) + (num_slots_ + 8 - 1) / 8;
+  }
 
   pf::PageNum next_free_;
   const int record_size_;

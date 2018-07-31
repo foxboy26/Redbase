@@ -33,6 +33,7 @@ TEST(PageMetaData, MarshalUnMarshal) {
     redbase::rm::PageMetaData another(8);
     another.Unmarshal(pData);
     EXPECT_EQ(another.NextFree(), 10);
+    EXPECT_TRUE(another.IsFull());
 
     for (int i = 0; i < header.NumSlots(); i++) {
       EXPECT_TRUE(header.GetSlot(i));

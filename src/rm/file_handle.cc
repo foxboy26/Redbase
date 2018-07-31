@@ -48,6 +48,7 @@ RC FileHandle::InsertRec(char *record_data, RID *rid) {
 
   // Allodate a new page if all exist pages are full.
   if (header_.next_free == -1) {
+    LOG(INFO) << "need to allocate a new page";
     pf::PageHandle page;
     rc = pf_file_handle_->AllocatePage(&page);
     if (rc != RC::OK) {
@@ -104,6 +105,7 @@ RC FileHandle::InsertRec(char *record_data, RID *rid) {
   meta.Marshal(pPageData);
   // if page is full, allocate and init a new page,
   if (meta.IsFull()) {
+    LOG(INFO) << "full!!!!!";
     header_.next_free = meta.NextFree();
     is_header_modified_ = true;
   }
