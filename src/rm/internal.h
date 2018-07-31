@@ -22,8 +22,8 @@ struct HeaderPage {
   HeaderPage(int record_size, int num_slots)
       : record_size(record_size), next_free(-1), num_slots(num_slots) {}
 
-  void Marshal(char *pData) { std::memcpy(this, pData, sizeof(HeaderPage)); }
-  void Unmarshal(char *pData) { std::memcpy(pData, this, sizeof(HeaderPage)); }
+  void Marshal(char *pData) { std::memcpy(pData, this, sizeof(HeaderPage)); }
+  void Unmarshal(char *pData) { std::memcpy(this, pData, sizeof(HeaderPage)); }
 };
 
 constexpr int HEADER_PAGE_SIZE = sizeof(HeaderPage);
@@ -89,7 +89,7 @@ public:
   }
 
   void SetNextFree(const pf::PageNum pageNum) { next_free_ = pageNum; }
-  pf::PageNum NextFree() { return next_free_; }
+  pf::PageNum NextFree() const { return next_free_; }
 
 private:
   // Each page has a meta-data header, which is next_free + a bitmap.

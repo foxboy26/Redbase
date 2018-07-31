@@ -22,7 +22,7 @@ public:
 
 private:
   PageNum pageNum_;
-  char *pData_;
+  char *pData_; // not owned
 };
 
 } // namespace pf

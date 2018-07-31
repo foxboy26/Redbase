@@ -4,6 +4,20 @@
 #include "gtest/gtest.h"
 
 namespace {
+TEST(HeaderPage, MarshalUnMarshal) {
+  redbase::rm::HeaderPage hdr(10, 5);
+  char data[100];
+  hdr.Marshal(data);
+
+  redbase::rm::HeaderPage another_hdr(-1, -1);
+  another_hdr.Unmarshal(data);
+  EXPECT_EQ(hdr.record_size, another_hdr.record_size);
+  EXPECT_EQ(hdr.next_free, another_hdr.next_free);
+  EXPECT_EQ(hdr.num_slots, another_hdr.num_slots);
+}
+} // namespace
+
+namespace {
 TEST(PageMetaData, MarshalUnMarshal) {
   {
     redbase::rm::PageMetaData header(8);

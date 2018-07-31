@@ -61,7 +61,7 @@ public:
   RC GetRid(RID *rid) const;
 
 private:
-  void Init(const RID &rid, const char *data, int size) {
+  void Init(const RID &rid, char *data, int size) {
     rid_ = rid;
     pData_ = new char[size];
     std::memcpy(pData_, data, size);
@@ -71,8 +71,10 @@ private:
   char *pData_;
 
   friend class FileHandle;
-  FRIEND_TEST(RM_RecordTest, Get);
-}; // namespace rm
+  // FRIEND_TEST(RM_RecordTest, Get);
+  FRIEND_TEST(RM_FileHandleTest, Update);
+};
+
 } // namespace rm
 } // namespace redbase
 

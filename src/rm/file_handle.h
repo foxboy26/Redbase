@@ -18,7 +18,7 @@ public:
   // Get a record
   RC GetRec(const RID &rid, Record *rec) const;
   // Insert a new record, return record id
-  RC InsertRec(const char *pData, RID *rid);
+  RC InsertRec(char *pData, RID *rid);
   // Delete a record
   RC DeleteRec(const RID &rid);
   // Update a record

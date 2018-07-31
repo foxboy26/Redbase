@@ -8,7 +8,7 @@ using redbase::rm::RID;
 using redbase::rm::Record;
 
 namespace {
-GTEST_TEST(RM_RIDTest, Get) {
+TEST(RM_RIDTest, Get) {
   RID rid;
   EXPECT_EQ(redbase::pf::kInvalidPageNum, rid.GetPageNum());
   EXPECT_EQ(redbase::rm::kInvalidSlotNum, rid.GetSlotNum());

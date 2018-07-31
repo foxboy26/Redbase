@@ -161,6 +161,37 @@ TEST_F(FileHandleTest, AccessPage) {
   ASSERT_OK(pfm_.CloseFile(&fh));
 }
 
+TEST_F(FileHandleTest, ModifyPage) {
+  redbase::pf::FileHandle fh;
+  ASSERT_OK(pfm_.OpenFile(filename_.c_str(), &fh));
+
+  for (int i = 0; i < 10; i++) {
+    redbase::pf::PageHandle page;
+    ASSERT_OK(fh.GetThisPage(i, &page));
+    char *pData;
+    page.GetData(pData);
+    ASSERT_TRUE(pData != nullptr);
+    memset(pData, i + 'a', redbase::pf::PAGE_DATA_SIZE * sizeof(char));
+    ASSERT_OK(fh.MarkDirty(page.GetPageNum()));
+    ASSERT_OK(fh.UnpinPage(page.GetPageNum()));
+  }
+
+  // Get the same page again.
+  for (int i = 0; i < 10; i++) {
+    redbase::pf::PageHandle page;
+    ASSERT_OK(fh.GetThisPage(i, &page));
+    char *pData;
+    page.GetData(pData);
+    ASSERT_TRUE(pData != nullptr);
+    for (int j = 0; j < redbase::pf::PAGE_DATA_SIZE; j++) {
+      EXPECT_EQ(pData[j], char(i + 'a'));
+    }
+    ASSERT_OK(fh.UnpinPage(page.GetPageNum()));
+  }
+
+  ASSERT_OK(pfm_.CloseFile(&fh));
+}
+
 TEST_F(FileHandleTest, CloseShouldFlushBufferPool) {
   redbase::pf::FileHandle fh;
   ASSERT_OK(pfm_.OpenFile(filename_.c_str(), &fh));
@@ -170,7 +201,7 @@ TEST_F(FileHandleTest, CloseShouldFlushBufferPool) {
   char *pData;
   page.GetData(pData);
   ASSERT_TRUE(pData != nullptr);
-  memset(pData, 'a', redbase::pf::PAGE_SIZE * sizeof(char));
+  memset(pData, 'a', redbase::pf::PAGE_DATA_SIZE * sizeof(char));
   ASSERT_OK(fh.MarkDirty(page.GetPageNum()));
   ASSERT_OK(fh.UnpinPage(page.GetPageNum()));
 
@@ -181,7 +212,7 @@ TEST_F(FileHandleTest, CloseShouldFlushBufferPool) {
   ASSERT_OK(fh.GetFirstPage(&page));
   page.GetData(pData);
   ASSERT_TRUE(pData != nullptr);
-  for (int i = 0; i < redbase::pf::PAGE_SIZE; i++) {
+  for (int i = 0; i < redbase::pf::PAGE_DATA_SIZE; i++) {
     EXPECT_EQ(pData[i], 'a');
   }
   ASSERT_OK(fh.UnpinPage(page.GetPageNum()));

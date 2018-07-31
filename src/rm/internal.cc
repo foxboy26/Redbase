@@ -29,8 +29,13 @@ void PageMetaData::Unmarshal(const char *pData) {
 void PageMetaData::Marshal(char *pData) {
   std::memcpy(pData, &next_free_, sizeof(pf::PageNum));
   pData = pData + sizeof(pf::PageNum);
+
   for (int i = 0; i < static_cast<int>(slots_.size()); i++) {
-    pData[i / 8] |= (slots_[i] << (i % 8));
+    if (slots_[i]) {
+      pData[i / 8] |= (1 << (i % 8));
+    } else {
+      pData[i / 8] &= ~(1 << (i % 8));
+    }
   }
 }
 
