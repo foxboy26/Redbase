@@ -17,6 +17,9 @@ public:
 
   // Get a record
   RC GetRec(const RID &rid, Record *rec) const;
+  // Get next record
+  RC GetNextRec(const RID &cur_rid, Record *rec,
+                std::function<bool(char *)> predicate) const;
   // Insert a new record, return record id
   RC InsertRec(char *pData, RID *rid);
   // Delete a record

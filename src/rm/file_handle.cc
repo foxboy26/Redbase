@@ -39,6 +39,64 @@ RC FileHandle::GetRec(const RID &rid, Record *rec) const {
   return pf_file_handle_->UnpinPage(rid.GetPageNum());
 }
 
+RC FileHandle::GetNextRec(const RID &cur_rid, Record *rec,
+                          std::function<bool(char *)> predicate) const {
+  RC rc;
+  pf::PageNum page_num = cur_rid.GetPageNum();
+  SlotNum slot_num = cur_rid.GetSlotNum();
+
+  while (true) {
+    pf::PageHandle page;
+    if (slot_num + 1 == header_.num_slots) {
+      rc = pf_file_handle_->GetNextPage(page_num, &page);
+      slot_num = 0;
+    } else {
+      rc = pf_file_handle_->GetThisPage(page_num, &page);
+    }
+    // we've reach the end of the search.
+    if (rc == RC::PF_EOF) {
+      return RC::RM_RECORDNOTFOUND;
+    }
+    // error. return immediately.
+    if (rc != RC::OK) {
+      return rc;
+    }
+
+    char *pData;
+    page.GetData(pData);
+    // get page header (bitmap)
+    PageMetaData meta(header_.record_size);
+    meta.Unmarshal(pData);
+
+    for (int s = slot_num + 1; s < header_.num_slots; s++) {
+      if (meta.GetSlot(s)) {
+        int slotOffset = meta.ComputeSlotOffset(s);
+        if (!predicate) {
+          rec->Init(RID(page_num, slot_num), pData + slotOffset,
+                    header_.record_size);
+
+          return pf_file_handle_->UnpinPage(page_num);
+        }
+
+        if (predicate(pData + s)) {
+          rec->Init(RID(page_num, slot_num), pData + slotOffset,
+                    header_.record_size);
+
+          return pf_file_handle_->UnpinPage(page_num);
+        }
+      }
+    }
+
+    // we've complete the search in page_num. unpin it.
+    rc = pf_file_handle_->UnpinPage(page_num);
+    if (rc != RC::OK) {
+      return rc;
+    }
+  }
+
+  return RC::PF_EOF;
+}
+
 RC FileHandle::InsertRec(char *record_data, RID *rid) {
   LOG(INFO) << "InsertRec: " << std::string(record_data);
   RC rc;
@@ -141,8 +199,8 @@ RC FileHandle::DeleteRec(const RID &rid) {
     return RC::OK;
   }
 
-  // Mark the slot to be deleted. Also update the next_free if the page is full
-  // already.
+  // Mark the slot to be deleted. Also update the next_free if the page is
+  // full already.
   if (meta.IsFull()) {
     meta.SetNextFree(header_.next_free);
     header_.next_free = pageNum;

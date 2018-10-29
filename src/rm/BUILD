@@ -63,21 +63,22 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
-# cc_library(
-#     name = "file_scan",
-#     srcs = [
-#         "file_scan.cc",
-#     ],
-#     hdrs = [
-#         "file_scan.h",
-#     ],
-#     deps = [
-#         ":file_handle",
-#         ":record",
-#         "//src:common",
-#         "@com_google_glog//:glog",
-#     ],
-# )
+
+cc_library(
+    name = "file_scan",
+    srcs = [
+        "file_scan.cc",
+    ],
+    hdrs = [
+        "file_scan.h",
+    ],
+    deps = [
+        ":file_handle",
+        ":record",
+        "//src:common",
+        "@com_google_glog//:glog",
+    ],
+)
 
 cc_library(
     name = "internal",
